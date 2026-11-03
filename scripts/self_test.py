@@ -159,13 +159,26 @@ def t_gate():
         if "✓" not in out:
             raise RuntimeError("干净图也被拦了")
 
-        # 气泡时刻自动反推
+        # 气泡时刻自动反推 + 坐标自动排版
         sys.path.insert(0, str(SKILL_ROOT / "lib"))
         import story_util as SU
         at = SU.bubble_at(cfg["scenes"][0], "走着瞧", 10.0, 0, 1)
         if not (0 < at < 10):
             raise RuntimeError(f"bubble_at 算出 {at}")
-        return f"空图被拦、好图通过、气泡自动 at={at}s"
+
+        # 什么都不填也必须能排出来，且不许出画
+        box = SU.bubble_box({"text": "小屏能装游戏吗"}, (1080, 1200), 0, 1)
+        if box["cx"] - box["rx"] < 0 or box["cx"] + box["rx"] > 1080:
+            raise RuntimeError(f"自动排版出画：{box}")
+        if box["cy"] - box["ry"] < 0:
+            raise RuntimeError(f"自动排版顶出画：{box}")
+        # 给了 tail 就要跟着 tail 走
+        box2 = SU.bubble_box({"text": "小屏能装游戏吗", "tail": [900, 500]},
+                             (1080, 1200), 0, 1)
+        if abs(box2["cx"] - 900) > 200:
+            raise RuntimeError(f"tail 没起作用：{box2}")
+        return (f"空图被拦、好图通过、气泡自动 at={at}s、"
+                f"坐标自动 {box['rx']:.0f}×{box['ry']:.0f}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

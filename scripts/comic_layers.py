@@ -67,7 +67,7 @@ def build_bubbles(cfg, root: Path, canvas):
     out_dir.mkdir(exist_ok=True)
     W, H = canvas
     total = 0
-    problems, fatal = [], []
+    fatal = []
 
     for sc in cfg["scenes"]:
         bubbles = sc.get("bubbles") or []
@@ -75,7 +75,6 @@ def build_bubbles(cfg, root: Path, canvas):
             continue
 
         board = root / "boards" / f"{sc['id']}.png"
-        ink = _ink_bbox(board) if board.exists() else None
         dur = _audio_dur(root, sc["id"])
 
         for i, b in enumerate(bubbles):
@@ -88,40 +87,45 @@ def build_bubbles(cfg, root: Path, canvas):
             else:
                 at = float(at)
 
+            # 坐标同样可以不写：缺任意一个就整颗按字数自动排版（`story_util.auto_bubble`）。
+            # 填准坐标要看图量头顶，一颗来回三四次就比出图还贵，而差几十像素看不见。
+            box = SU.bubble_box(b, canvas, i, len(bubbles))
+            boxed = all(isinstance(b.get(k), (int, float))
+                        for k in ("cx", "cy", "rx", "ry"))
+            tail = b.get("tail") or (box["cx"], box["cy"] + box["ry"] + 60)
+
             c = Comic(W, H, bg=None, ss=3)
-            c.bubble(b["cx"], b["cy"], b["rx"], b["ry"], b["text"],
-                     tail_to=tuple(b.get("tail") or (b["cx"], b["cy"] + b["ry"] + 60)),
+            c.bubble(box["cx"], box["cy"], box["rx"], box["ry"], b["text"],
+                     tail_to=tuple(tail),
                      tail_w=b.get("tail_w", 52),
                      size=b.get("size", 42),
                      seed=abs(hash(sc["id"] + str(i))) % 999)
             c.save(out_dir / f"{sc['id']}_{i}.png")
             total += 1
 
-            # 位置体检：气泡压到人脸 / 尾巴悬空，都是最常见的返工点
-            if ink:
-                if b["cy"] + b["ry"] > ink[1] + 40:
-                    problems.append(f"{sc['id']}_{i}「{b['text']}」气泡下沿压到头（ink top={ink[1]}）")
-                tail = b.get("tail")
-                # 尾巴停在头顶上方 20~50px 是正常的（顶端留白才不会扎进头发）；
-                # 超过 60px 才算悬空 —— 那才是「指着空气」。
-                if tail and tail[1] < ink[1] - 60:
-                    problems.append(f"{sc['id']}_{i}「{b['text']}」尾巴悬空"
-                                    f"（tail y={tail[1]}，头顶 y={ink[1]}）")
-                if b["cx"] - b["rx"] < 0 or b["cx"] + b["rx"] > W:
-                    fatal.append(f"{sc['id']}_{i}「{b['text']}」气泡左右出画")
+            # 只拦「必然出片即废」的两种：气泡出画、缺字形。
+            #
+            # 「气泡压到头」「尾巴悬空」以前也判，但那个判定拿的是**全图最高点**：
+            # 一格里有两个人时，尾巴指向矮的那个（实测 s6：右边络腮胡头顶 y≈439，
+            # 而全图最高点在左边那位身上），就会被误判成「悬空」。
+            # 结果是为了让这个检查闭嘴，反复看图挪坐标 —— 烧的 token 比重出图还多，
+            # 而差 30~50px 在成片里根本看不出来。宁可少报，不要误报。
+            if boxed:
+                if box["cx"] - box["rx"] < 0 or box["cx"] + box["rx"] > W:
+                    fatal.append(f"{sc['id']}_{i}「{b['text']}」气泡左右出画"
+                                 f"（cx±rx = {box['cx'] - box['rx']}~{box['cx'] + box['rx']}，画布 0~{W}）")
+                if box["cy"] + box["ry"] > H - 20:
+                    fatal.append(f"{sc['id']}_{i}「{b['text']}」气泡下沿出画")
 
             bad = missing_glyphs(b["text"])
             if bad:
                 fatal.append(f"{sc['id']}_{i}「{b['text']}」缺字形：{bad}（渲染出来是方框）")
 
             flag = " (auto)" if auto else ""
-            print(f"  bubbles/{sc['id']}_{i}.png  t={at:.1f}s{flag}  「{b['text']}」")
+            pos = "" if boxed else "  [坐标自动]"
+            print(f"  bubbles/{sc['id']}_{i}.png  t={at:.1f}s{flag}{pos}  「{b['text']}」")
 
     print(f"气泡 {total} 个")
-    if problems:
-        print("\n⚠️  气泡位置提醒（不影响出片，但要复核）：")
-        for p in problems:
-            print("   · " + p)
     if fatal:
         print("\n✗ 气泡阻断（这些必然出片即废）：")
         for p in fatal:

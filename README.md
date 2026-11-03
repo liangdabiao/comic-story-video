@@ -67,7 +67,9 @@ B站效果： https://www.bilibili.com/video/BV1GT436HEwP/?vd_source=86926e418c8
 ## 三个核心做法
 
 **1. 生成模型只画线稿，一个字都不让它写。**
-它写中文必出乱码方块，没有例外。台词、标签、强调圈、红圈全部由代码叠。
+它写中文容易出乱码方块。台词、标签、强调圈、红圈全部由代码叠。
+这句只写进 prompt 做预防 —— **出图后不要为了查有没有写字去逐张看图**，
+零星符号在成片里看不见，为此重出是白花钱。
 
 **2. 线稿进引擎逐笔描，气泡在合成时弹。**
 白板引擎会把彩色区域二值化成黑块，所以气泡不能进引擎。
@@ -192,6 +194,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 | 脚本 | 作用 |
 |---|---|
 | `scripts/pipeline.py` | **三道门禁**：文案 / 图 / 节奏，不通过非零退出 |
+| `scripts/contact_sheet.py` | 把 8 格拼成一张总览图，看一次代替看八次 |
 | `scripts/comic_gen.py` | 打印每格完整 prompt（出过的跳过；或调 Agnes 后端批量出图） |
 | `scripts/comic_boards.py` | 净化、抹水印、统一画布、生成 `plan.json`（不切图） |
 | `scripts/comic_tts.py` | 逐格配音，量真实时长，报字/秒；文案变了自动重配 |
@@ -221,8 +224,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
       "bg": "sky",
       "narration": "晏子要去楚国出差。楚国给他开的门，一米四。这不是门，这是狗洞。",
       "bubbles": [
-        { "cx": 470, "cy": 300, "rx": 175, "ry": 92,
-          "text": "这也叫门？", "tail": [392, 700], "tail_w": 62, "at": 6.0 }
+        { "text": "这也叫门？", "tail": [392, 700] }
       ]
     },
     { "id": "s2", "type": "chart", "bg": "cream", "narration": "..." }
@@ -231,8 +233,10 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 ```
 
 - `type: art` 线稿格，走白板引擎；`type: chart` 信息图格，走 `charts.py` 的静帧
-- `bubbles[].at` 是相对本格开始的秒数 —— **说到哪句，哪句才弹**
-- `bubbles[].tail` 是尾巴尖坐标，指向说话的人；`tail_w` 别小于 50，否则像根针
+- `bubbles[]` **只写 `text` 就能出片**：`at`（说到哪句才弹）和 `cx/cy/rx/ry`
+  （位置大小）都会自动算，不用填
+- 想让气泡指着某个人，加 `tail: [x, y]`（尾巴尖坐标），气泡自己跟过去；
+  不写就居中放在画面上部，不用管
 - 字号不用手调：字太宽会自动缩；缺字形会被预检拦下（防方框）
 
 ---
@@ -384,6 +388,7 @@ comic-story-video/
 ├── README.md
 ├── scripts/
 │   ├── pipeline.py            三道门禁：文案 / 图 / 节奏
+│   ├── contact_sheet.py       分镜拼成一张总览图（省看图 token）
 │   ├── comic_gen.py           出图 prompt（出过的跳过）/ 批量出图
 │   ├── comic_boards.py        净化 + 落版（不切图）
 │   ├── comic_tts.py           逐格配音

@@ -121,3 +121,60 @@ def bubble_at(scene: dict, text: str, dur: float, index: int, count: int) -> flo
         return round(min(max(0.2, at), dur - 0.4), 1)
 
     return round(min(max(0.3, dur * (index + 1) / (count + 1)), dur - 0.4), 1)
+
+
+# ────────────────────────── 气泡自动排版 ──────────────────────────
+# 为什么要这个：坐标（cx/cy/rx/ry）以前是必填的，而填准它得看 `boards/` 量头顶，
+# 或者更糟——出片后看着不顺眼再挪。每看一次图 1.5~2.5k token，
+# 一颗气泡来回三四次就比出图贵了。而差 30~50px 在竖屏成片里看不出来。
+#
+# 实测参数（《陈白沙》《晏子》的成片值）：7 字 rx≈145、8 字 rx≈205、ry≈92。
+# 黑体全角字宽 ≈ 字号，气泡内切宽 = 2*rx*0.82，反推 rx ≈ 25.6×每行字数。
+BUBBLE_SIZE = 42
+_BUBBLE_LINE_MAX = 8          # 一行最多 8 字，超过就折两行（实测成片是单行 7~8 字）
+
+
+def auto_bubble(text: str, canvas: tuple[int, int], index: int, count: int,
+                tail: tuple[float, float] | None = None) -> dict:
+    """不给坐标时按字数排一个「够用」的气泡，返回 cx/cy/rx/ry。
+
+    目标是「不难看」，不是「精确」。气泡会自动缩字号（见 `Comic.bubble`），
+    所以 rx 估小了也只是字变小，不会溢出。
+
+    给了 `tail` 就跟着尾巴走：气泡中心对齐尾巴的 x，往上放。
+    这是最省事的手写方式 —— 只想让气泡指着某个人时，只写 `tail` 一个坐标就够了。
+    """
+    W, H = canvas
+    n = max(1, len(text or ""))
+    lines = 1 if n <= _BUBBLE_LINE_MAX else 2
+    per_line = n if lines == 1 else (n + 1) // 2
+    per_line = min(per_line, _BUBBLE_LINE_MAX)
+
+    rx = min(W * 0.45, max(110.0, per_line * 23 + 30))
+    ry = 88 + (66 if lines > 1 else 0)
+
+    if tail:
+        # 气泡跟着尾巴走，但不许贴边（留 24px）
+        cx = min(max(float(tail[0]), rx + 24), W - rx - 24)
+        # 尾巴在肩膀以上时气泡放上面，否则放下面
+        cy = float(tail[1]) - ry - 56
+        if cy - ry < 16:
+            cy = min(float(tail[1]) + ry + 56, H - ry - 16)
+    else:
+        cx = W / 2
+        # 多颗时从上往下依次排开，互相不压：第一颗在 y≈120，每颗让出 2*ry+18
+        cy = min(120 + index * (2 * ry + 18), H * 0.45)
+
+    return {"cx": round(cx, 1), "cy": round(cy, 1), "rx": round(rx, 1), "ry": round(ry, 1)}
+
+
+def bubble_box(b: dict, canvas: tuple[int, int], index: int, count: int) -> dict:
+    """取气泡坐标：四个都填了就用填的，缺任意一个就整颗自动排版。
+
+    不允许「填了两个、剩下两个靠猜」——混着来会排出一个更怪的形状。
+    """
+    need = ("cx", "cy", "rx", "ry")
+    if all(isinstance(b.get(k), (int, float)) for k in need):
+        return {k: float(b[k]) for k in need}
+    return auto_bubble(b.get("text", ""), canvas, index, count,
+                       tail=tuple(b["tail"]) if b.get("tail") else None)

@@ -32,6 +32,20 @@
   照这条会白重出三张。同样只记录
 · 连通域个数不作质量指标：已通过的图在 252~2222 之间，全属正常
 · 能真正判「画得太快」的只有一个：渲染后的 `ink_probe` 曲线（关卡③）
+
+**别往这里加判定 —— 加一条就多一次返工**
+--------------------------------------
+这个文件存在的目的是「拦住真会返工的错」，不是「把所有不完美都标红」。
+加新判定前先回答：**这条不满足，观众会看不懂故事吗？**
+
+会（可以阻断）：缺图、空白、整片涂黑、缺念白、气泡出画、charts 函数不存在。
+不会（只记录，不许阻断）：图上有零星文字/符号、尾巴偏几十像素、身高略飘、
+顶部留白少、线条有脏点、灰阶没除干净、气泡字数偏多、念白少了几十字。
+
+上一版把「图上有文字」「气泡尾巴没落在头顶正中央」都写成了重出条件，
+实测 5 张完美图里最后一张为了纸牌上的日文白重出一次，气泡坐标反复挪到
+看图 token 比出图还贵。**判定越严，浪费越多**，而且严的那几条几乎都不是
+用户要求的 —— 是自己加的标准。
 """
 
 from __future__ import annotations
@@ -166,17 +180,17 @@ def check_script(root: Path) -> bool:
                 r.fail(f"{tag}: 空台词")
             if len(txt) > BUBBLE_MAX_CHARS:
                 r.warn(f"{tag}: {len(txt)} 字，超过 {BUBBLE_MAX_CHARS} 字上限，观众读不完")
-            try:
+            # 坐标可以不写 —— 缺任意一个就整颗自动排版，所以这里只对「填了」的做体检
+            boxed = all(isinstance(b.get(k), (int, float))
+                        for k in ("cx", "cy", "rx", "ry"))
+            if boxed:
                 cx, cy, rx, ry = (float(b[k]) for k in ("cx", "cy", "rx", "ry"))
-            except (KeyError, TypeError, ValueError):
-                r.fail(f"{tag}: 缺 cx/cy/rx/ry")
-                continue
-            if cx - rx < 0 or cx + rx > W:
-                r.fail(f"{tag}: 左右出画（{cx - rx:.0f}~{cx + rx:.0f}，画布 0~{W}）")
-            if cy - ry < 0:
-                r.fail(f"{tag}: 顶出画（上沿 {cy - ry:.0f}）")
-            if b.get("cy", 0) + ry > H:
-                r.fail(f"{tag}: 底出画（下沿 {cy + ry:.0f} > {H}）")
+                if cx - rx < 0 or cx + rx > W:
+                    r.fail(f"{tag}: 左右出画（{cx - rx:.0f}~{cx + rx:.0f}，画布 0~{W}）")
+                if cy - ry < 0:
+                    r.fail(f"{tag}: 顶出画（上沿 {cy - ry:.0f}）")
+                if cy + ry > H:
+                    r.fail(f"{tag}: 底出画（下沿 {cy + ry:.0f} > {H}）")
             at = b.get("at")
             if at in (None, "", "auto"):
                 pass          # 不写是推荐做法：comic_layers 会按念白反推
