@@ -73,16 +73,25 @@ B站效果： https://www.bilibili.com/video/BV1p64M6wE1w/?vd_source=86926e418c8
 白板引擎会把彩色区域二值化成黑块，所以气泡不能进引擎。
 拆开反而更好：气泡的出场时机变得完全可控——旁白说到哪句，哪句才弹出来。
 
-**3. 连通域决定绘制节奏。**
-一张图里 78%~94% 的墨迹是连在一起的，引擎会把它当一整块、3 秒画完，
-剩下 7 秒画面不动。解法是把人物按横向三带切成三个绘制区，
-引擎于是按 头 → 身 → 脚 的顺序画，绘制过程自然铺满整段旁白。
+**3. 绘制节奏靠 `draw_duration`，不靠切图。**
+引擎有两条调度路径，差别是决定性的：
+
+- **传 `element_plan`** → 每个语义物体按「自然时长」画，上限 1.6 秒，画完就停。
+  而引擎的分组会把整幅内容合并成很少几个物体，于是画面提前静止。
+- **不传** → 按 √面积把 `draw_duration` 分给每个连通域，总时长恒等于它，天然铺满。
+
+`element_plan` 是给「有逐句 TTS 时间戳」的场景准备的。没有真实时间戳时，
+按字数估出来的窗口既不真实、又破坏了铺满 —— 所以**默认不传**。
 
 ```
-10 秒分镜的绘制进度（三带切分前 / 后）
-前： 0.15s 21% → 0.6s 81% → 1.2s 89% → 2.6s 95%   ← 3 秒就画完了
-后： 1s 只出轮廓 → 8s 画完                          ← 铺满旁白
+同一格（10.5 秒）实测绘制进度
+传 plan： 0.5s 0% → 1s 10.3% → 1.5s 10.6% → 10s 10.8%   ← 1.5 秒就画满，剩 9 秒不动
+不传：    0.5s 0% → 1s 0.9%  → 2s 4.0%   → 4s 9.9% → 8s 10.8%  ← 铺满七成五
 ```
+
+> 这条结论是量出来的，不是想出来的。早先版本往图里切三带、后来又在带边界
+> 填白 2px「下刀」，都没用 —— 合并发生在引擎的分组阶段，切图管不到它。
+> 现在 `comic_boards.py` 一步都不切，`scripts/ink_probe.py` 负责量曲线。
 
 ---
 
@@ -142,7 +151,7 @@ python ../scripts/comic_run.py .
 选题
  ├ ① 文案      写旁白 + 气泡台词              references/mixi-script.md
  ├ ② 出图      图生图，锚点图当参考            raw/s1.png
- ├ ③ 净化排版  二值化→抹水印→裁白边→三带切分   comic_boards.py
+ ├ ③ 净化排版  二值化→抹水印→裁白边→统一画布   comic_boards.py
  ├ ④ 配音      edge-tts 逐格出声              audio/s1.mp3
  ├ ⑤ 叠层      透明气泡 + 信息图               comic_layers.py
  ├ ⑥ 渲染      白板引擎逐笔描（最慢）          render_explainer.py
@@ -152,12 +161,13 @@ python ../scripts/comic_run.py .
 | 脚本 | 作用 |
 |---|---|
 | `scripts/comic_gen.py` | 打印每格完整 prompt（或调 Agnes 后端批量出图） |
-| `scripts/comic_boards.py` | 净化、抹水印、统一画布、三带切分、生成 `plan.json` |
+| `scripts/comic_boards.py` | 净化、抹水印、统一画布、生成 `plan.json`（不切图） |
 | `scripts/comic_tts.py` | 逐格配音，量真实时长，报字/秒；文案变了自动重配 |
 | `scripts/comic_layers.py` | 透明气泡层 + 信息图整图 |
 | `scripts/render_explainer.py` | 白板引擎渲染（`--only s3` 单格调试） |
 | `scripts/comic_finish.py` | 合成、ASS 字幕、竖屏、响度归一 |
 | `scripts/comic_run.py` | 一条命令全跑（`--skip` 跳过某几步） |
+| `scripts/ink_probe.py` | 抽帧量绘制进度曲线，判断「画得太快/太慢」 |
 | `scripts/verify_media.py` | 校验时长 / 分辨率 / 音轨 |
 
 ---
@@ -282,10 +292,11 @@ python ../scripts/comic_run.py .
 
 | 症状 | 真因 | 处置 |
 |---|---|---|
-| 分镜 3 秒画完，后面不动 | 连通域太大 | 三带切分（默认开）；`comic_boards.py --check` 确认 |
+| 分镜 2 秒就画满、后面不动 | 传了 `element_plan`，物体按 1.6s 上限画完即停 | 去掉 `regions`，走均分铺满；`ink_probe.py` 量一遍 |
 | 背景是荧光绿 | `blend=all_mode=multiply` 在 YUV 空间算 | 改 `colorkey` + `overlay`（脚本已内置） |
 | 信息图一直轻微晃动 | `zoompan` 缓推的取整抖动 | 已删 zoompan，改静止 + 0.35s 淡入 |
 | 字幕飞出画面 | SRT + `force_style` 交给 libass | 手写 ASS，声明 `PlayResX/Y` |
+| 长句字幕左右被裁 | libass 对中文不折行 | 已修：按标点折行（`_wrap()`） |
 | 气泡里出方框 | 字体缺字形（`→`『』等） | `missing_glyphs()` 预检；符号改中文词 |
 | 改了旁白，声音还是旧的 | 缓存只认「文件在不在」 | 已修：按文案+音色+语速取指纹 |
 | 合并报「分拍合计 ≠ 成片时长」 | 分拍缓存是旧音频渲的 | 已修：比对时长，超 0.15s 自动重渲 |
@@ -309,7 +320,7 @@ ffmpeg -i out/final.mp4 -af volumedetect -f null -     # mean_volume 应在 -20 
 
 四件事只有肉眼能发现：
 
-1. **绘制是否铺开** —— 第 1 秒应该只出轮廓，不该已经画完
+1. **绘制是否铺开** —— `python scripts/ink_probe.py .`，5 格应该全部 ✓
 2. **气泡是否逐个弹出** —— 3 秒前不该有气泡
 3. **底色是否正确** —— 浅蓝 / 米黄，不是绿、不是白
 4. **字幕是否出画** —— 字号、位置、有没有被裁
@@ -329,12 +340,13 @@ comic-story-video/
 ├── README.md
 ├── scripts/
 │   ├── comic_gen.py           出图 prompt / 批量出图
-│   ├── comic_boards.py        净化 + 三带切分
+│   ├── comic_boards.py        净化 + 落版（不切图）
 │   ├── comic_tts.py           逐格配音
 │   ├── comic_layers.py        气泡层 + 信息图
 │   ├── comic_finish.py        合成 + 字幕 + 竖屏
 │   ├── comic_run.py           一条命令全跑
 │   ├── render_explainer.py    白板引擎渲染器
+│   ├── ink_probe.py           绘制进度体检（抽帧量墨迹曲线）
 │   ├── self_test.py           环境自检
 │   ├── verify_media.py        产物校验
 │   └── setup.sh / setup.ps1

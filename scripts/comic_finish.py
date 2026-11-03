@@ -170,6 +170,31 @@ def _split(t: str):
     return [x.strip() for x in re.split(r"(?<=[。？！；])", t) if x.strip()]
 
 
+def _wrap(text: str, limit: int) -> str:
+    """按标点优先折行，兜底硬切，用 ASS 的 \\N 硬换行。
+
+    中文没有词间空格，libass 会整句当一个词 —— WrapStyle: 0 的自动折行
+    对中文不生效，句子一长就直接横向溢出画布，两边字被裁掉。
+    实测：55 字在 58 号字下 x 从 0 到 1079，左右全被切。
+    """
+    if limit <= 0 or len(text) <= limit:
+        return text
+    lines, buf = [], ""
+    for ch in text:
+        buf += ch
+        if len(buf) >= limit:
+            cut = max((buf.rfind(p) for p in "，。：；、！？"), default=-1)
+            if cut >= limit // 2:          # 断在标点后，读起来不断气
+                lines.append(buf[:cut + 1])
+                buf = buf[cut + 1:]
+            else:
+                lines.append(buf)
+                buf = ""
+    if buf:
+        lines.append(buf)
+    return "\\N".join(lines)
+
+
 ASS_HEAD = """[Script Info]
 ScriptType: v4.00+
 PlayResX: {VW}
@@ -190,10 +215,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def subs(cfg, root: Path):
     VW, VH = VERTICAL
     font = cfg.get("sub_font", "Microsoft YaHei")
+    sub_size = cfg.get("sub_size", 58)
+    margin = 70
     head = ASS_HEAD.format(VW=VW, VH=VH, FONT=font,
-                           SUB_SIZE=cfg.get("sub_size", 58),
+                           SUB_SIZE=sub_size,
                            SUB_MV=cfg.get("sub_margin_v", 150),
                            TITLE_SIZE=cfg.get("title_size", 64))
+    # 一行装多少字：可用宽 / 单字宽。汉字实际宽约 0.78×字号（标点更窄），
+    # 系数取 0.78 是量过 22 字实测版面后回来的经验值。
+    wrap_limit = max(8, int((VW - 2 * margin) / (sub_size * 0.78)))
 
     lines, cursor = [], 0.0
     for sc in cfg["scenes"]:
@@ -205,7 +235,7 @@ def subs(cfg, root: Path):
         for s in sents:
             seg = span * len(s) / total_chars
             lines.append(f"Dialogue: 0,{_ts(t)},{_ts(min(t + seg - 0.04, cursor + d))},"
-                         f"Sub,,0,0,0,,{s}")
+                         f"Sub,,0,0,0,,{_wrap(s, wrap_limit)}")
             t += seg
         cursor += d
 

@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""comic_boards —— 第 2 步：把生成图净化、统一排版、切成三带，产出 plan.json。
+"""comic_boards —— 第 2 步：净化 → 统一排版 → 产出 plan.json。
 
-这一步解决的是全流程最硬的一个约束：
+**这里不做任何切分。** 早先版本把画面横切成三带、后来又改成在带边界下刀，
+都是为了让引擎「按带慢慢画」—— 实测证明这条路走不通：
 
-    引擎按「连通域」调度绘制。一张多角色图里 78%~94% 的墨迹是连在一块的，
-    引擎把它当一个整体一次描完 —— 10 秒的分镜前 3 秒就画完了，剩下 7 秒画面不动。
+    引擎的分组会把整幅内容合并成一个语义物体，物体时长上限 1.6 秒。
+    10.5 秒的分镜实测 1.5 秒就画满 98%，剩下 9 秒画面完全不动。
+    切 box 没用（box 只决定先后），在像素上下刀也没用（合并发生在分组阶段）。
 
-解法是把人物按**横向三带**切成三个 region：
-    上带 = 头脸      中带 = 身子和手势      下带 = 衣摆
-引擎于是按 头 → 身 → 脚 的顺序画，绘制过程自然铺满整段旁白。
+真正管用的是 `render_explainer.py` 里**不传 element_plan**：
+引擎退回 `_schedule_components`，按 √面积把 draw_duration 分给每个连通域，
+总时长恒等于 draw_duration —— 天然铺满。同一格重测：0→6 秒均匀推进，
+7.8 秒画满，剩 2.7 秒留白。曲线见 references/comic-story.md。
 
-（注意：三带只是「时间分配」手段，不改变连通域。真正要分开讲某两块，
-必须在出图时就留 8~15px 白缝 —— 见 references/comic-story.md。）
+所以这一步只负责：净化线稿、抹水印、裁白边、等比落版、写 plan.json，
+外加一份墨迹体检（boards_meta.json）。
 
 用法
 ----
@@ -29,6 +32,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy import ndimage
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_ROOT / "lib"))
@@ -37,8 +41,6 @@ from lineart_clean import clean, stats  # noqa: E402
 DEFAULT_CANVAS = (1080, 1200)
 INNER = (1040, 900)          # 人物在画布上的最大尺寸（顶部留给气泡）
 FLOOR_RATIO = 0.983          # 脚底对齐到画布高度的 98.3%
-BANDS = (0.0, 0.40, 0.74, 1.0)   # 三带分界（相对墨迹高度）
-BAND_OVERLAP = 0.02          # 相邻带重叠，防「横跨边界」的元素未被完整包含
 
 
 def make_board(src: Path, dst: Path, canvas, inner, floor_ratio,
@@ -71,33 +73,29 @@ def make_board(src: Path, dst: Path, canvas, inner, floor_ratio,
     return fig.size, top
 
 
-def make_bands(dst: Path, canvas, bands=BANDS, overlap=BAND_OVERLAP):
-    """把人物按高度切成 N 带，返回归一化 0-1000 的 box 列表 [ymin, xmin, ymax, xmax]。"""
+def ink_report(dst: Path) -> dict:
+    """落版后的墨迹体检：bbox + 最大连通域占比。
+
+    只做记录，不切图。**不要再往这张图上切带或下刀** —— 绘制节奏由
+    render_explainer 的 draw_duration 控制（见该文件顶部说明），
+    在像素上断开只会留下白缝，对节奏没有任何帮助。
+    """
     a = np.array(Image.open(dst).convert("L"))
-    W, H = canvas
-    ys, xs = np.where(a < 128)
-    ymin, ymax = int(ys.min()), int(ys.max())
-    xmin, xmax = int(xs.min()), int(xs.max())
-    hgt = max(1, ymax - ymin)
-    ov = hgt * overlap
-
-    boxes = []
-    for i in range(len(bands) - 1):
-        y0 = ymin + hgt * bands[i] - (ov if i > 0 else 0)
-        y1 = ymin + hgt * bands[i + 1] + (ov if i < len(bands) - 2 else 0)
-        boxes.append([
-            round(max(0, y0) / H * 1000), round(xmin / W * 1000),
-            round(min(H, y1) / H * 1000), round(xmax / W * 1000),
-        ])
-    return boxes, (xmin, ymin, xmax, ymax)
-
-
-BAND_LABELS = ("top", "mid", "low")
-BAND_LINES = ("先画头脸", "再画身子和手势", "最后落下衣摆")
+    ink = a < 128
+    ys, xs = np.where(ink)
+    if len(ys) == 0:
+        return {"ink": None, "largest": 0.0}
+    lab, n = ndimage.label(ink, structure=np.ones((3, 3)))
+    sizes = ndimage.sum(ink, lab, range(1, n + 1))
+    return {
+        "ink": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
+        "components": int(n),
+        "largest": round(float(sizes.max() / max(sizes.sum(), 1)) * 100, 1),
+    }
 
 
 def main():
-    ap = argparse.ArgumentParser(description="生成图 → 统一画布 → 三带 → plan.json")
+    ap = argparse.ArgumentParser(description="生成图 → 统一画布 → plan.json")
     ap.add_argument("project", nargs="?", default=".", help="项目目录（含 story.json 和 raw/）")
     ap.add_argument("--check", action="store_true", help="只输出 raw/ 的连通域体检，不生成")
     ap.add_argument("--threshold", type=int, default=175)
@@ -127,8 +125,7 @@ def main():
                 print(f"{sc['src']:<24}{'缺失':>8}")
                 continue
             s = stats(p)
-            tip = "连通域过多，多半是噪点" if s["components"] > 400 else (
-                "最大块 >70%，必须靠三带切分" if s["largest_share"] > 70 else "ok")
+            tip = "连通域过多，多半是噪点" if s["components"] > 400 else "ok"
             print(f"{sc['src']:<24}{s['ink'] / (s['size'][0] * s['size'][1]) * 100:>7.1f}%"
                   f"{s['components']:>8}{s['largest_share']:>9.1f}%  {tip}")
         return
@@ -143,21 +140,19 @@ def main():
 
         size, top = make_board(src, boards / f"{sid}.png", canvas, inner, floor,
                                args.threshold, args.min_area, wm)
-        boxes, ink = make_bands(boards / f"{sid}.png", canvas)
+        rep = ink_report(boards / f"{sid}.png")
 
+        # 不写 regions：没有逐句时间戳时，窗口是估的，反而让引擎
+        # 按「单物体 1.6 秒上限」提前画完。绘制节奏交给 draw_duration。
         scenes.append({
             "id": sid,
             "image": f"boards/{sid}.png",
             "audio": f"audio/{sid}.mp3",
-            "regions": [
-                {"label": BAND_LABELS[i], "box": boxes[i],
-                 "annotation": BAND_LINES[i], "reveal_order": i + 1}
-                for i in range(len(boxes))
-            ],
         })
-        meta[sid] = {"fig": size, "top": top, "ink": ink, "bands": boxes}
+        meta[sid] = {"fig": size, "top": top, **rep}
+        ink_h = (rep["ink"][3] - rep["ink"][1]) if rep["ink"] else 0
         print(f"  {sid}  {sc['src']:<18} → {size[0]}x{size[1]}  top={top}  "
-              f"墨高={ink[3] - ink[1]}")
+              f"墨高={ink_h}  连通域={rep['components']}  最大块={rep['largest']}%")
 
     plan = {
         "idea": cfg.get("title", "") + " · 漫画面讲故事",

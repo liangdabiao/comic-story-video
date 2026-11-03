@@ -2,15 +2,25 @@
 # -*- coding: utf-8 -*-
 """render_explainer.py — 白板引擎渲染器（管线第 4 步）
 
-输入：plan.json（每格：线稿图 + 音频 + region 绘制窗口）
+输入：plan.json（每格：线稿图 + 音频）
 输出：每格 mp4 → concat 成片（黑白线稿，底色和气泡在 comic_finish.py 里叠）
 
 引擎内部把每个连通域拆成骨架路径、按人手顺序逐段描 —— 这就是「画的过程」。
 
-三种音画对齐档位，自动降级：
-  1. 精确档  region 写了 start/end（来自逐句 TTS 真实时间戳）→ 帧级"讲到哪画到哪"
-  2. 估算档  region 只有 annotation 文本 → 按字符数 70% / 面积 30% 分配窗口
-  3. 均分档  没有 regions → 引擎全局启发式，前 70% 时间画完
+**绘制节奏只有一种正确走法：不传 element_plan。**
+
+    引擎有两条调度路径：
+      · 传 element_plan → `_schedule_semantic_objects`：每个语义物体按
+        「自然时长」画，上限 1.6 秒，画完就停、绝不拉伸。而引擎的分组会把
+        整幅内容合并成很少几个物体 —— 实测 10.5 秒的分镜 1.5 秒画出 98%。
+      · 不传 → `_schedule_components`：按 √面积把 draw_duration 分给每个
+        连通域，总时长恒等于 draw_duration，天然铺满。
+
+    element_plan 是给「有逐句 TTS 真实时间戳」的用例准备的。没有时间戳时
+    build_windows 只是按字符数瞎估，估出来的窗口既不真实，又把铺满搞坏。
+
+所以默认走第二条。只有当 region 里真的写了 start/end（精确 cue）才用 plan。
+draw_duration = total * DRAW_BUDGET（0.75：画到七成五，剩下留给气泡弹入和收尾呼吸）。
 
 用法：
   python scripts/render_explainer.py plan.json --out out/lineart.mp4
@@ -285,7 +295,13 @@ def render_scene(scene: dict, root: Path, out_dir: Path, quality: str,
     fps, bitrate = settings["fps"], settings["bitrate"]
 
     regions = scene.get("regions") or []
-    element_plan = build_windows(regions, total) if regions else None
+    # 只有真实时间戳（逐句 TTS）才值得用 element_plan。按字符数估出来的
+    # 窗口会让引擎每个物体 1.6 秒画完就停，画面提前静止 —— 见文件头说明。
+    has_cue = any(r.get("start") is not None and r.get("end") is not None
+                  for r in regions)
+    if regions and not has_cue:
+        log(f"  [{sid}] regions 没写 start/end（不是真实时间戳）→ 忽略，走均分铺满")
+    element_plan = build_windows(regions, total) if has_cue else None
     need_plan = element_plan is not None
     animator = animator or WhiteboardAnimator(fade_duration=0.06 if need_plan else 0.12)
     if (animator.fade_duration == 0.12) == need_plan:
@@ -294,11 +310,15 @@ def render_scene(scene: dict, root: Path, out_dir: Path, quality: str,
     video_only = out_dir / f"{sid}.video_only.mp4"
     last_error = None
     for attempt in range(4):
+        plan_arg = None
+        if element_plan:
+            plan_arg = (element_plan if attempt == 0
+                        else widen(element_plan, 1 + 0.15 * attempt, total))
         try:
             animator.render_to_file(
                 img, total * DRAW_BUDGET, total, str(video_only),
                 fps=fps, bitrate=bitrate,
-                element_plan=(element_plan if attempt == 0 else widen(element_plan, 1 + 0.15 * attempt, total)),
+                element_plan=plan_arg,
             )
             last_error = None
             break
@@ -373,10 +393,10 @@ def main() -> int:
     for s in scenes:
         regions = s.get("regions") or []
         has_cue = any(r.get("start") is not None and r.get("end") is not None for r in regions)
-        mode = "精确cue" if has_cue else ("估算窗口" if regions else "均分")
+        mode = "精确cue" if has_cue else "均分铺满"
         log(f"  {s['id']}: {s['image']}"
             + (f" + {s['audio']}" if s.get("audio") else f" ({s.get('duration', 8)}s 静音)")
-            + f"  [{len(regions)} region / {mode}]")
+            + f"  [{mode}]")
 
     if args.dry_run:
         return 0

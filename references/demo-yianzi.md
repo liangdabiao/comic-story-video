@@ -249,7 +249,7 @@ cp <skill>/templates/comic/charts_example.py charts.py
 # ① 出图 prompt（贴给 ImageGen，参考图 = assets/reference/01-style-anchor.png，fidelity=low）
 python <skill>/scripts/comic_gen.py . --list
 
-# ② 图放进 raw/ 后：净化排版 + 三带切分
+# ② 图放进 raw/ 后：净化排版（不切图，节奏靠 draw_duration）
 python <skill>/scripts/comic_boards.py .
 
 # ③ 逐格配音（同时体检字数/语速）
@@ -296,7 +296,7 @@ ffmpeg -i out/final.mp4 -af volumedetect -f null -
 
 肉眼过了这四条才算完：
 
-1. 第 1 秒只出轮廓，第 8 秒才画完 —— 三带切分生效
+1. 绘制铺开 —— `ink_probe.py` 量：s1 的 95% 在 5.5s（预算 7.9s，70%），5 格全部命中
 2. 2.6 秒前没有气泡，之后逐个弹出 —— 气泡时机跟着旁白
 3. 底色是浅蓝 `#CBE3F5` / 米黄 `#FAF2E0`，不是绿、不是白
 4. 底部大字幕不裁边、不压画面里的气泡
