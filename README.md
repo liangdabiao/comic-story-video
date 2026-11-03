@@ -93,7 +93,7 @@ B站效果： https://www.bilibili.com/video/BV1GT436HEwP/?vd_source=86926e418c8
 
 > 这条结论是量出来的，不是想出来的。早先版本往图里切三带、后来又在带边界
 > 填白 2px「下刀」，都没用 —— 合并发生在引擎的分组阶段，切图管不到它。
-> 现在 `comic_boards.py` 一步都不切，`scripts/ink_probe.py` 负责量曲线。
+> 现在 `comic_boards.py` 一步都不切。
 
 ---
 
@@ -156,7 +156,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 
 ---
 
-## 三道门禁（`scripts/pipeline.py`）
+## 两道门禁 + 一道复核（`scripts/pipeline.py`）
 
 写文档不够 —— 上一版把「先定稿文案再出图」「出图前检查连通域」都写进了散文，
 实测一条片子还是文案改 3 版、图出 10 张用 6 张、返工两轮、墙钟 46 分钟。
@@ -166,9 +166,10 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 |---|---|---|
 | ① 文案 | `--stage script` | 缺念白、总字数 >570、气泡出画、`charts.py` 里没有要的函数、`{角色}` 未定义 |
 | ② 图 | `--stage image` | 缺图、几乎空白、整片涂黑（只有这三种） |
-| ③ 节奏 | `--stage render` | 引擎提前画完（t95 < 55%） |
+| ③ 节奏 | `--stage render` | **不拦人。** 只查 `plan.json` 有没有手写 `regions`，再打印每格动了几秒 |
 
-不通过非零退出。**只拦会导致返工的结构性问题，风格建议一律只警告不阻断。**
+前两关不通过就非零退出。**只拦会导致返工的结构性问题，风格建议一律只警告不阻断。**
+第三关永远通过 —— 渲染节奏是参数问题，修在 `plan.json`，不在图。
 
 判不准的指标一律只记录、不下判决 —— 这一条是踩过坑的：
 `largest_share` 曾经被当成「>90% 必重出」，量了 6 个出片成功的项目之后推翻，
@@ -193,7 +194,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 
 | 脚本 | 作用 |
 |---|---|
-| `scripts/pipeline.py` | **三道门禁**：文案 / 图 / 节奏，不通过非零退出 |
+| `scripts/pipeline.py` | **两道门禁**（文案 / 图，不过就非零退出）+ **一道复核**（节奏，不拦人） |
 | `scripts/contact_sheet.py` | 把 8 格拼成一张总览图，看一次代替看八次 |
 | `scripts/comic_gen.py` | 打印每格完整 prompt（出过的跳过；或调 Agnes 后端批量出图） |
 | `scripts/comic_boards.py` | 净化、抹水印、统一画布、生成 `plan.json`（不切图） |
@@ -202,7 +203,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 | `scripts/render_explainer.py` | 白板引擎渲染（`--only s3` 单格调试） |
 | `scripts/comic_finish.py` | 合成、ASS 字幕、竖屏、响度归一 |
 | `scripts/comic_run.py` | 一条命令全跑（`--skip` 跳过某几步） |
-| `scripts/ink_probe.py` | 抽帧量绘制进度曲线，判断「画得太快/太慢」 |
+| `scripts/ink_probe.py` | 诊断用：查 `plan.json` 有没有 `regions`，打印每格怎么动的（**没有判定线**） |
 | `scripts/verify_media.py` | 校验时长 / 分辨率 / 音轨 |
 
 ---
@@ -323,8 +324,9 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 **体型差必须写成硬指标。** 想让角色显矮，别写「矮个子」——模型会给你一个正常身高的成年人，
 梗当场就没了。要写「头顶只到旁边那人胸口」这种**可比较的参照**，末尾再加「体型差非常明显」。
 
-**返工率要有预期**：单角色格基本一次过，多角色格（3 人以上、要指定谁指谁）
-实际两三成要重出。重出单格成本极低，别整批重来。
+**别预设返工率。** 以前这里写「多角色格两三成要重出」，那句话在给返工找理由 ——
+看了就会放心挑毛病。现在只有两种情况真该重出：**该在的人不在**、
+**整片涂黑或几乎空白**。其余一律记一笔往下走，成片整体过一遍再说。
 
 ---
 
@@ -334,7 +336,7 @@ python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 
 | 症状 | 真因 | 处置 |
 |---|---|---|
-| 分镜 2 秒就画满、后面不动 | 传了 `element_plan`，物体按 1.6s 上限画完即停 | 去掉 `regions`，走均分铺满；`ink_probe.py` 量一遍 |
+| 分镜 2 秒就画满、后面不动 | `plan.json` 里手写了 `regions`，物体按 1.6s 上限画完即停 | 删掉 `regions` 重渲染（几十秒，零成本）。**不是重出图** |
 | 背景是荧光绿 | `blend=all_mode=multiply` 在 YUV 空间算 | 改 `colorkey` + `overlay`（脚本已内置） |
 | 信息图一直轻微晃动 | `zoompan` 缓推的取整抖动 | 已删 zoompan，改静止 + 0.35s 淡入 |
 | 字幕飞出画面 | SRT + `force_style` 交给 libass | 手写 ASS，声明 `PlayResX/Y` |
@@ -366,7 +368,7 @@ ffmpeg -i out/final.mp4 -af volumedetect -f null -     # mean_volume 应在 -20 
 
 四件事只有肉眼能发现：
 
-1. **绘制是否铺开** —— `python scripts/ink_probe.py .`，5 格应该全部 ✓
+1. **绘制是否铺开** —— 抽第 3 秒和该格 75% 处两帧，画面不一样就够，不用跑工具
 2. **气泡是否逐个弹出** —— 3 秒前不该有气泡
 3. **底色是否正确** —— 浅蓝 / 米黄，不是绿、不是白
 4. **字幕是否出画** —— 字号、位置、有没有被裁
@@ -387,7 +389,7 @@ comic-story-video/
 ├── SKILL.md                   skill 主文档（agent 读这个）
 ├── README.md
 ├── scripts/
-│   ├── pipeline.py            三道门禁：文案 / 图 / 节奏
+│   ├── pipeline.py            两道门禁：文案 / 图（节奏只复核，不拦人）
 │   ├── contact_sheet.py       分镜拼成一张总览图（省看图 token）
 │   ├── comic_gen.py           出图 prompt（出过的跳过）/ 批量出图
 │   ├── comic_boards.py        净化 + 落版（不切图）
@@ -396,7 +398,7 @@ comic-story-video/
 │   ├── comic_finish.py        合成 + 字幕 + 竖屏
 │   ├── comic_run.py           一条命令全跑
 │   ├── render_explainer.py    白板引擎渲染器
-│   ├── ink_probe.py           绘制进度体检（抽帧量墨迹曲线）
+│   ├── ink_probe.py           诊断：查 plan.json 的 regions + 打印每格怎么动的
 │   ├── self_test.py           环境自检
 │   ├── verify_media.py        产物校验
 │   └── setup.sh / setup.ps1
@@ -443,7 +445,8 @@ comic-story-video/
 
 ## 已知限制
 
-- **多角色格返工率两三成**：prompt 对「谁指谁」这类空间关系的控制力有限。
+- **prompt 对「谁指谁」控制力有限**：多角色格偶尔画错动作。但这不构成重出理由 ——
+  只有「该在的人不在」和「整片涂黑」才重出，其余观众看不出来。
 - **角色不做统一**：每格可以是不同的人，靠风格锚点保持画风一致。
   要固定同一张脸，得把上一格当参考链式传下去。
 - **信息图要写代码**：每期内容不同，不适合做成配置。`Comic` 已给齐积木，一张图通常 20 行。

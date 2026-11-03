@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""pipeline —— 三道门禁。每一步都是「机器判」，不靠肉眼、不靠记文档。
+"""pipeline —— 两道门禁 + 一道复核。每一步都是「机器判」，不靠肉眼、不靠记文档。
 
-    python scripts/pipeline.py <项目目录> --stage script    # 出图之前
-    python scripts/pipeline.py <项目目录> --stage image     # 净化/配音之前
-    python scripts/pipeline.py <项目目录> --stage render    # 合成之前
+    python scripts/pipeline.py <项目目录> --stage script    # 出图之前（会拦）
+    python scripts/pipeline.py <项目目录> --stage image     # 净化/配音之前（会拦）
+    python scripts/pipeline.py <项目目录> --stage render    # 合成之前（只复核，不拦）
     python scripts/pipeline.py <项目目录> --stage all       # 全查
 
-**不通过就非零退出。** 这不是体检报告，是门禁：没过就别往下走。
+**前两道不通过就非零退出**，是门禁：没过就别往下走。
+第三道只输出信息、永远通过 —— 因为渲染节奏是参数问题，不是图的问题。
 
 为什么要这个文件
 ----------------
 上一版把「先定稿文案再出图」「出图前量连通域」都写进了 SKILL.md 的散文里。
 结果实测一条片子：文案改 3 版、出图 10 张只用 6 张、返工两轮、墙钟 46 分钟。
-不是文档没写，是**写了也没人拦得住** —— 顺序错了不报错，图连成一块也不报错，
-一路静默通过，等到成片才发现，于是整条重做。
+不是文档没写，是**写了也没人拦得住** —— 顺序错了不报错，一路静默通过。
 
 所以判定必须变成代码：能量出来的就给数字和阈值，量不出来的不该写成硬指标。
 
@@ -27,11 +27,13 @@
 · 「最大块 > 90% 就重出」**已废除**。量了 6 个已经出片成功的项目，91~96% 的
   五格里有三格节奏正常（惠州 s7 95.0% → 57% 正常、惠州 s4 91.1% → 57% 正常、
   佛印 s8 92.4% → 67% 正常）。单人图的轮廓天然就是一块，这个数判不出来。
-  → 只记录，>90% 时提示「渲染后先量这一格」，不下判决
+  → 只打印数字，**不提示、不判定、不引导去查任何东西**
 · 「中灰 > 8% 就重出」**已废除**：通过的 6 张里有 3 张在 8.4~11.3%，
   照这条会白重出三张。同样只记录
 · 连通域个数不作质量指标：已通过的图在 252~2222 之间，全属正常
-· 能真正判「画得太快」的只有一个：渲染后的 `ink_probe` 曲线（关卡③）
+· 「面积 t95 < 55% 就是画太快」**已废除**：34 格已出片的片子 t95 在 37%~76%
+  乱跳（大色块填充会让面积提前到 95%，笔其实还在走），照这条会重出一堆
+  没问题的图。现在的指标是「活跃占比」，而且**只复核、不阻断**
 
 **别往这里加判定 —— 加一条就多一次返工**
 --------------------------------------
@@ -70,7 +72,8 @@ SCENE_RANGE = (7, 9)         # 推荐 8 格
 BUBBLE_MAX_CHARS = 8
 INK_BLANK = 0.8              # 墨迹 <0.8% = 基本空白
 INK_DARK = 30.0              # 墨迹 >30% = 整片涂黑（已通过的样本最高 23.7%）
-LARGEST_NOTE = 90.0          # 只提示，不判定 —— 见文件头
+# 「最大块占比」不设阈值。实测单人图天然就是一块（91~96% 的一堆全部正常出片），
+# 量它只能得到噪音。数字照打，不出判定、不提示行动 —— 见文件头。
 
 # 听众听不出信息的句式 —— 出现即说明台词被抽走了
 DEAD_PHRASES = [
@@ -345,7 +348,7 @@ def check_images(root: Path) -> bool:
         except json.JSONDecodeError:
             pass
 
-    stale_prompt, hot = [], []
+    stale_prompt = []
     r.line(f"\n  {'格':<4}{'文件':<12}{'尺寸':>10}{'墨%':>7}{'最大块':>8}{'中灰':>7}   判定")
     for sc in arts:
         sid, src = sc["id"], sc.get("src") or f"{sc['id']}.png"
@@ -360,19 +363,17 @@ def check_images(root: Path) -> bool:
         if sid in gen and gen[sid] != h:
             stale_prompt.append(sid)
 
-        # 只拦「图本身不可用」，不拦「可能要画得快」—— 后者这个数判不准
+        # 只拦「图本身不可用」两类。最大块、中灰一律不进判定 ——
+        # 单人图天然就是一块，进判定只会让人去重出没问题的图。
         verdict, bad = "ok", False
         if m["ink_pct"] < INK_BLANK:
             verdict, bad = "几乎空白，重出", True
         elif m["ink_pct"] > INK_DARK:
             verdict, bad = "整片涂黑，重出（prompt 补「不要涂成黑色块」）", True
-        elif m["largest"] > LARGEST_NOTE:
-            verdict = f"最大块 {m['largest']}%，渲染后先量这格"
-            hot.append(sid)
 
         r.line(f"  {sid:<4}{src:<12}{m['w']}x{m['h']:<6}{m['ink_pct']:>7.1f}"
                f"{m['largest']:>7.1f}%{m['gray_pct']:>6.1f}%   "
-               f"{'✗ ' + verdict if bad else ('· ' + verdict if verdict != 'ok' else '✓')}")
+               f"{'✗ ' + verdict if bad else '✓'}")
         if bad:
             r.fail(f"{sid}: {verdict}")
 
@@ -380,56 +381,66 @@ def check_images(root: Path) -> bool:
         r.warn(f"这几格的 prompt 在出图之后改过，raw/ 里还是旧图：{', '.join(stale_prompt)}"
                f" —— 要么按新 prompt 重出，要么把 prompt 改回去")
 
-    if hot:
-        r.line(f"\n  最大块 >90% 的格：{', '.join(hot)}")
-        r.line("     单人图天然就是一块，这个数不算错；但它也可能是几个主体连成一片。")
-        r.line("     别直接重出 —— 先渲一格量节奏：")
-        r.line("       python scripts/comic_run.py <项目> --skip tts,layers,boards,finish")
-        r.line("       python scripts/ink_probe.py <项目> --part <格>")
-        r.line("     t95 在 55% 以上就不用管；明显偏低再改 prompt：")
-        r.line("       手不要「伸手指着/伸手去接」，改「双手拢在袖中」；加「主体之间不能碰触」")
-
-    r.line("\n  注：中灰、连通域个数只记录不判定。实测通过的图里中灰有到 11.3%、"
-           "连通域有到 2222 的，都正常出片了。")
+    # 曾经这里会打印「最大块 >90% 的格」并引导去查节奏。删了。
+    # 实测单人图天然就是一块（34 格里 91~96% 的一堆，全部正常出片），
+    # 打印出来只会让人以为「这一格可疑」，然后去重出一张没问题的图。
+    r.line("\n  注：中灰、最大块、连通域个数都只记录不判定。实测通过的图里"
+           "中灰到 11.3%、最大块到 96%、连通域到 2222，都正常出片了。")
     return r.dump()
 
 
-# ────────────────────────── ③ 节奏 ──────────────────────────
+# ────────────────────────── ③ 节奏（复核，不阻断） ──────────────────────────
 def check_render(root: Path) -> bool:
-    r = Report("③ 节奏（合成之前）")
-    parts = sorted((root / "out" / "lineart_parts").glob("*.mp4"))
-    if not parts:
-        r.fail("没有 out/lineart_parts/*.mp4，先跑渲染")
-        return r.dump()
+    """量画面活跃度。**这一关永远通过** —— 它只输出信息，不产生返工。
 
+    为什么不再阻断：上一版拿「面积 t95 < 55%」判「画太快」，实测 34 格
+    已出片的片子里 t95 在 37%~76% 之间乱跳，全部正常 —— 这条判定会让
+    agent 去重出一张完全没问题的图。渲染节奏是**参数问题**，修法在
+    plan.json 和 render_explainer，永远不在图。
+    """
+    r = Report("③ 节奏（复核，不阻断）")
     sys.path.insert(0, str(SKILL_ROOT / "scripts"))
     import io
     from contextlib import redirect_stdout
     import ink_probe
-    bad = []
+
+    # 唯一确定性的问题：plan.json 里手写了 regions（带 start/end）。
+    # 这个不用量视频，读文件就知道，而且处置明确（删 regions 重渲染）。
+    cued = ink_probe.cued_scenes(root / "plan.json")
+    if cued:
+        r.warn(f"plan.json 里这几格带 start/end 的 regions：{', '.join(cued)}")
+        r.line("     这会激活 element_plan，引擎按窗口卡时间，几秒画完就静止。")
+        r.line("     处置：删掉这几格的 regions，重跑渲染（几十秒，零成本）。")
+        r.line("     **不要重出图** —— 图没问题。")
+    else:
+        r.ok("plan.json 干净（没有 regions），引擎按面积铺满预算")
+
+    parts = sorted((root / "out" / "lineart_parts").glob("*.mp4"))
+    if not parts:
+        r.line("\n  还没有 out/lineart_parts/*.mp4，跳过实测")
+        r.dump()
+        return True
+
+    r.line("")
     for p in parts:
         buf = io.StringIO()
         try:
             with redirect_stdout(buf):      # ink_probe 自己会打印，先收起来
-                res = ink_probe.probe(p, 0.5, p.stem)
+                ink_probe.probe(p, 0.25, p.stem)
             r.line(buf.getvalue().rstrip("\n"))
         except Exception as e:  # noqa: BLE001
-            r.warn(f"{p.stem}: 量不了（{e}）")
-            continue
-        if res and not res["ok"]:
-            bad.append(p.stem)
-    if bad:
-        r.fail(f"节奏不对：{', '.join(bad)}。t95 明显偏低（<55%）是引擎提前画完了 —— "
-               f"先确认 render_explainer 没传 element_plan（comic-story.md §4.2）；"
-               f"确认没传还快，再去看那格的图")
-    else:
-        r.ok("每格绘制进度都落在 55%~115% 区间")
-    return r.dump()
+            r.line(f"  {p.stem:<6} 量不了（{e}）")
+
+    r.line("\n  注：这些数字没有判定线。34 格已出片的片子活跃 31%~77%、"
+           "面积95% 在 37%~76%；人为造的「1.5 秒画完」样本活跃 28%，"
+           "和健康下限重叠 —— 分不开，所以不判。")
+    r.dump()
+    return True          # 有意不看 dump 的结果：这道不阻断
 
 
 # ────────────────────────── 入口 ──────────────────────────
 def main():
-    ap = argparse.ArgumentParser(description="三道门禁：文案 / 图 / 节奏")
+    ap = argparse.ArgumentParser(description="两道门禁（文案/图）+ 一道复核（节奏，不拦）")
     ap.add_argument("project", nargs="?", default=".")
     ap.add_argument("--stage", default="all",
                     choices=["script", "image", "render", "all"])

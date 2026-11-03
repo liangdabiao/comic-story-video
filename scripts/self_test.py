@@ -115,9 +115,10 @@ def t_render():
 
 
 def t_gate():
-    """三道门禁的代码本身能跑通 —— 用一个最小项目正反各测一次。
+    """门禁代码本身能跑通 —— 用一个最小项目正反各测一次。
 
     这是必须的自检项：门禁判错了比没有门禁更糟（会拦掉好图，白花钱重出）。
+    同时验证「节奏关永远放行」—— 它曾经因为 t95 偏低而要人重出图，实测那些图都正常。
     """
     import shutil
     from PIL import Image, ImageDraw
@@ -177,8 +178,25 @@ def t_gate():
                              (1080, 1200), 0, 1)
         if abs(box2["cx"] - 900) > 200:
             raise RuntimeError(f"tail 没起作用：{box2}")
+
+        # 节奏关必须永远放行 —— 哪怕 plan.json 里写了 regions（真问题）。
+        # 上一版会因为「t95 < 55%」判「画太快」，逼人去重出图，
+        # 而实测那些图全都正常播完。这条断言就是防它被改回去。
+        (tmp / "plan.json").write_text(json.dumps({
+            "scenes": [{"id": "s1", "regions": [{
+                "label": "all",
+                "box": {"ymin": 0, "xmin": 0, "ymax": 1000, "xmax": 1000},
+                "start": 0.0, "end": 1.5}]}]}, ensure_ascii=False), encoding="utf-8")
+        r2 = subprocess.run([sys.executable, str(SKILL_ROOT / "scripts" / "pipeline.py"),
+                             str(tmp), "--stage", "render"],
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if r2.returncode != 0:
+            raise RuntimeError("节奏关拦人了 —— 它必须永远放行，只输出信息")
+        if "不要重出图" not in (r2.stdout + r2.stderr):
+            raise RuntimeError(f"没给出正确处置：{(r2.stdout + r2.stderr)[-200:]}")
+
         return (f"空图被拦、好图通过、气泡自动 at={at}s、"
-                f"坐标自动 {box['rx']:.0f}×{box['ry']:.0f}")
+                f"坐标自动 {box['rx']:.0f}×{box['ry']:.0f}、节奏关不拦人")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -194,7 +212,7 @@ def main():
     check("ffmpeg", t_ffmpeg)
     check("edge-tts", t_tts)
     check("白板引擎", t_engine)
-    check("三道门禁 pipeline", t_gate)
+    check("门禁 pipeline（含节奏关不拦人）", t_gate)
     if not args.quick:
         check("实际渲染 2 秒", t_render)
 
