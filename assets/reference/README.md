@@ -73,7 +73,9 @@
 python lib/lineart_clean.py assets/reference/05-gen-character-raw.png --stats
 ```
 
-`largest_share` 会给你 90%+ —— 单人图必然如此，所以必须靠三带切分。
+`largest_share` 会给你 90%+ —— 单人图必然如此（人物本身就连成一块），
+所以**别拿这个数判单人图**。它只看多人格：>90% 说明几个主体连成一片了，
+判读和处置见 `scripts/pipeline.py` 关卡②。
 
 判断一张生成图能不能用，看四条：
 

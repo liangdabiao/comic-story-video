@@ -1,6 +1,6 @@
 # 图片讲故事：完整制作手册
 
-> 这份文档是整条流水线的唯一真相。看完它，你应该能从零做出 110–130 秒的
+> 这份文档是整条流水线的唯一真相。看完它，你应该能从零做出 110–135 秒的
 > 「图片在讲故事」竖屏短视频：8 格、有配音、有大字幕、气泡逐个弹出。
 
 ---
@@ -370,28 +370,31 @@ python scripts/ink_probe.py <项目目录>
 s1  10.5s  墨迹 12.66%  95% 在 5.5s（预算 7.9s，70%）  ✓ 节奏正常
 ```
 
-**⚠ 不等于必须返工。** 这个阈值量的是「画多快」，但偏离的原因有两种，
-处置完全相反 —— 要配合同一份 `boards_meta.json` 里的 `largest_share` 一起读：
+**⚠ 不等于必须返工。** 先按这个顺序查，别跳步：
+
+1. **有没有传 `element_plan`？** 传了必然 1~2 秒画完（§4.2）。九成的「画太快」
+   到这一步就解释完了，跟图没有关系。
+2. 没传还快，再看 `boards_meta.json` 里的 `largest_share`。
 
 | t95 | largest_share | 真因 | 处置 |
 |---|---|---|---|
-| < 40% | > 80% | 整幅连成一块，前几秒一口气铺满 | 重出：改浅色衣物 + 人物留空隙（§3.5） |
+| < 40% | 任意 | **先怀疑 `element_plan`** | 去掉 `regions` 重渲，再看 |
+| < 40% | > 80% | 整幅连成一块，前几秒一口气铺满 | 改浅色衣物 + 人物留空隙（§3.5） |
 | 45%–55% | > 80% | 同上，只是程度轻 | **可以不返工。** 重出要冒丢掉已画对的身份特征的风险 |
 | 45%–55% | < 60% | 预算偏紧 | 降一点 `DRAW_BUDGET` 或加长该格 |
 | > 115% | 任意 | 画不完就切了 | `DRAW_BUDGET` 砍到 0.7 |
 
-实测《惠州》s7 是 54%（阈值 55%），成因和 s4 同源，但重出会丢掉已经画对的
-「高硬方冠 vs 软布条」区分 —— 这个代价比 1 个百分点大，留着。
+> **`largest_share` 单独看没有意义，别拿它当门禁。** 实测 6 个出片成功的项目，
+> 91~96% 的五格里有三格节奏正常（惠州 s7 95.0% → 57%，惠州 s4 91.1% → 57%，
+> 佛印 s8 92.4% → 67%）。单人图的人物轮廓天然就是一块。
+> 它只在「t95 已经偏低」时用来区分原因，不单独判决。
 
-想看单张图的连通域体检：
+想看整批图的体检：
 
 ```bash
-python lib/lineart_clean.py raw/s1.png --stats      # largest_share
-python scripts/comic_boards.py <项目> --check        # 全部 raw 一次过
+python scripts/pipeline.py <项目> --stage image     # 一条命令，含判定
+python lib/lineart_clean.py raw/s1.png --stats      # 只看单张的数
 ```
-
-`largest_share` 现在只用来**判断这张图是不是「连成一片」**（决定绘制时
-大块会不会显得突兀），不再决定要不要切带 —— 切带已经证实无效。
 
 ---
 
@@ -518,25 +521,49 @@ ffmpeg -i out/final.mp4 -af volumedetect -f null -
 
 ---
 
-## 8. 换选题：12 步
+## 8. 换选题：9 步，顺序不能换
 
-1. 新建项目目录，`cp templates/comic/story.example.json story.json`
-2. 按 `references/mixi-script.md` 写念白，**8 格 110–130 秒 ≈ 440–520 字**
-   （`xiangsheng01` + `speed 1.0` 实测 4.0 字/秒；写完用 `comic_tts.py` 量一遍再调）
-3. 拆成 8 格，定每格是对话格还是信息图格
-4. 每格写一句 `prompt`（谁、什么表情、什么动作、朝哪）
-5. `python scripts/comic_gen.py . --list` 打印 prompt，逐格出图
-6. 出完审片：按 §3.5 那六条逐张过，不过的只重出那一格，放进 `raw/`
-7. `python scripts/comic_boards.py . --check` 看连通域，确认没异常
-8. `python scripts/comic_tts.py .` 配音，看总时长和字/秒
-9. 按实际音频时长排 `bubbles[].at`（讲到哪句，哪句才弹）
-10. `python scripts/comic_boards.py .` 出底板 → 对底板量头顶坐标、填 `cx/cy/tail`
-    （见本节「气泡坐标怎么量」）→ `comic_layers.py .` 出气泡层和信息图
-11. `python scripts/render_explainer.py plan.json --out out/lineart.mp4 --quality high`
-12. `python scripts/comic_finish.py .` → 抽帧验收
+**顺序本身就是省钱。** 出图是最贵的一步，文案是最容易变的一步 ——
+把最容易变的那步放在最贵的后面，改一次就废一批图。
 
-第 9 步最容易糊弄过去，但它决定整条片子的呼吸。**气泡一上来全弹出来，
-观众会先读完再看画，节奏就散了。**
+| # | 做什么 | 命令 / 产物 |
+|---|---|---|
+| 1 | 建目录，拷模板 | `cp templates/comic/story.example.json story.json` |
+| 2 | 写念白 + 定 8 格 | 按 `mixi-script.md`；**440–540 字 ≈ 110–135 秒**（4.0 字/秒，标点算字） |
+| 3 | **过文案门禁** | `pipeline.py . --stage script` —— 不过不许往下走 |
+| 4 | 每格写 prompt，角色描述放进 `characters` | prompt 里用 `{名字}` 引用，别每格重抄 |
+| 5 | 出图 | `comic_gen.py . --list`（出过的自动跳过）→ 图放 `raw/` |
+| 6 | **过图门禁** | `pipeline.py . --stage image` |
+| 7 | 配音 | `comic_tts.py .`，看总时长和字/秒 |
+| 8 | 净化落版 → 气泡层 → 渲染 → 合成 | `comic_run.py .`（一条命令） |
+| 9 | **过节奏门禁** + 抽帧验收 | `pipeline.py . --stage render` |
+
+第 3 步是整条链路里最划算的一步：跑一次 3 秒，能省掉「文案改了 → 8 格重配 →
+7 个气泡重算 → subs.ass 全废 → 图重出」这一整串。
+
+第 4 步之前先把**所有** prompt 写完，再一次性出图。别出一张看一张：
+出一张看一张会把出图拉到一两个小时，而且中途改 prompt 会让前后的画风漂。
+
+气泡坐标（`cx/cy/rx/ry/tail`）等第 8 步的 `boards/` 出来再定，别凭空填 ——
+`pipeline.py --stage script` 只检查「有没有出画」，不检查「指得对不对」。
+头顶坐标怎么量见 `references/prompt-recipes.md`「气泡坐标：用连通域定位头顶」。
+
+### 气泡的出现时刻：不用填，代码自己算
+
+**`at` 可以不写。** `comic_layers.py` 会发现没有 `at`，然后按念白反推。
+
+原理：字幕本来就是按「分句 + 字数比例」铺的（见 `comic_finish.subs`），
+所以气泡时刻用同一把尺子量就行 —— 找到台词落在哪一句，取它前面所有句子的
+字数占比，乘本格音频时长。实现见 `lib/story_util.bubble_at`。
+
+```json
+{"text": "你吹的牛呢？", "cx": 382, "cy": 170, "rx": 205, "ry": 95}
+```
+
+跑的时候会打 `t=6.5s (auto)`，看一眼对不对就行。想覆盖就显式写 `"at": 6.5`。
+
+台词和念白对不上（重叠字太少）时会退回均分 —— 观感差一点，但不会弹到格尾去，
+所以不报警。以前靠听音频掐时间，7 个坐标反复对不准，现在这一步不用管了。
 
 ### 改完之后要重跑哪几步
 

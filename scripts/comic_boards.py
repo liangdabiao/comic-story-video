@@ -116,7 +116,10 @@ def main():
     wm = None if args.watermark in ("none", "None", "") else args.watermark
 
     if args.check:
-        print(f"{'图':<24}{'墨迹%':>8}{'连通域':>8}{'最大占比':>10}  提示")
+        # 这只是一个数字快照，不做判定 —— 判定在 scripts/pipeline.py --stage image。
+        # 早先这里会把「连通域 >400」标成「多半是噪点」，但实测正常线稿也有
+        # 2222 个连通域的，那条提示是纯噪音，会把真正的告警淹没。
+        print(f"{'图':<24}{'墨迹%':>8}{'连通域':>8}{'最大占比':>10}")
         for sc in cfg["scenes"]:
             if sc.get("type") != "art":
                 continue
@@ -125,9 +128,10 @@ def main():
                 print(f"{sc['src']:<24}{'缺失':>8}")
                 continue
             s = stats(p)
-            tip = "连通域过多，多半是噪点" if s["components"] > 400 else "ok"
             print(f"{sc['src']:<24}{s['ink'] / (s['size'][0] * s['size'][1]) * 100:>7.1f}%"
-                  f"{s['components']:>8}{s['largest_share']:>9.1f}%  {tip}")
+                  f"{s['components']:>8}{s['largest_share']:>9.1f}%")
+        print("\n要判定（缺图 / 空白 / 涂黑）跑："
+              "python scripts/pipeline.py <项目目录> --stage image")
         return
 
     scenes, meta = [], {}

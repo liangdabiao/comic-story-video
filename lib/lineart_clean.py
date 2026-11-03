@@ -131,7 +131,8 @@ def stats(path) -> dict:
 
     最大连通域占比越高，引擎越会把它当成一整块一次描完。
     实测一张多角色图 78% 墨迹连在一起 → 10 秒的分镜前 3 秒就画完了，
-    剩下 7 秒画面不动。解法见 comic_boards.py 的三带切分。
+    剩下 7 秒画面不动。切带、下刀都试过，无效 ——
+    真正管用的是让主体在画面里互不接触，见 scripts/pipeline.py 关卡②。
     """
     a = np.array(Image.open(path).convert("L"))
     ink = a < 128

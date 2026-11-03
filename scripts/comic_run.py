@@ -7,9 +7,11 @@
 顺序（有依赖，不能乱）：
     tts     先配音   —— 时长决定后面所有的节奏
     layers  气泡+信息图 —— 只看 story.json，不依赖别的
-    boards  线稿净化 + 三带 + plan.json
+    boards  线稿净化 + 落版 + plan.json
     render  白板引擎逐笔渲染（最慢，几分钟）
     finish  合成 → 字幕 → 竖屏
+
+跑之前先过门禁：python scripts/pipeline.py <项目目录> --stage image
 
 单步重跑用对应的 comic_*.py；本脚本是「全跑」的便捷入口。
 """
@@ -48,10 +50,18 @@ def main():
     ap.add_argument("project", nargs="?", default=".")
     ap.add_argument("--skip", default="", help="跳过步骤，逗号分隔：tts,layers,boards,render,finish")
     ap.add_argument("--quality", default="high", choices=["low", "medium", "high"])
+    ap.add_argument("--no-gate", action="store_true", help="跳过图门禁（不建议）")
     args = ap.parse_args()
 
     project = Path(args.project).resolve()
     skip = {s.strip() for s in args.skip.split(",") if s.strip()}
+
+    # 先过图门禁：缺图 / 空白 / 涂黑会在 boards 那步才炸，白等一轮渲染
+    if not args.no_gate and "boards" not in skip and "render" not in skip:
+        sys.path.insert(0, str(SKILL))
+        import pipeline
+        if not pipeline.check_images(project):
+            raise SystemExit("✗ 图门禁没过，先修图（--no-gate 可跳过）")
 
     if "tts" not in skip:
         call("tts", project)

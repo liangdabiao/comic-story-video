@@ -1,19 +1,25 @@
 {
   "_读我": [
     "把这个文件复制成 <项目目录>/story.json，改内容即可。",
-    "type=art   线稿格：raw/ 里的图 → 净化 → 三带 → 白板引擎逐笔描",
-    "type=chart 信息图格：charts.py 里同名函数画出来 → zoompan 静帧，不进引擎",
-    "bubbles[].at 是相对本格开始的秒数，必须对上 narrration 里那句话的落点",
+    "**先写完文案再出图**：python scripts/pipeline.py <目录> --stage script 过了才出图。",
+    "type=art   线稿格：raw/ 里的图 → 净化落版 → 白板引擎逐笔描",
+    "type=chart 信息图格：charts.py 里同名函数画出来 → 静止+淡入，不进引擎",
+    "prompt 里用 {角色名} 引用下面 characters 的描述，不要每格重抄一遍",
+    "bubbles[].at 可以不写：会自动按念白反推；写了就以写的为准",
     "字号不用手调：字太宽 bubble() 会自动缩",
     "配音默认单口：tts.voice 用 voice-design 生成的相声音色（references/voice-design.md）",
-    "tts.speed 固定 1.0，不要加 post_speed —— 节奏靠文本，不靠压时间轴",
-    "顶层 voice / rate 只在 engine=edge 时生效，有其他字段时可以留着不用"
+    "tts.speed 固定 1.0，不要加 post_speed —— 节奏靠文本，不靠压时间轴"
   ],
 
   "title": "舌战群儒",
   "subtitle": "一个人，对一屋子",
   "canvas": [1080, 1200],
   "gap": 0.15,
+
+  "characters": {
+    "zhugeliang": "一个二十七八岁的年轻文士，头上戴一条素色软布巾、扎在脑后（绝对不戴硬冠、不戴方冠、不戴乌纱帽），脸型清瘦、眉毛细长、眼睛细长有神，下巴光洁没有胡须，穿极浅的月白色宽袖长袍、只用线条画衣褶、绝对不要涂成黑色块，身材清瘦挺拔",
+    "zhangzhao": "一个五十来岁的江东老臣，头上戴高高的黑色进贤冠（与软布巾形状完全不同），脸型方阔、眉毛粗、鬓角花白，下巴留一把花白的络腮长须，穿浅灰色的深衣、只用线条画衣褶，身材矮胖，头顶只到旁边那个年轻人的肩膀"
+  },
 
   "tts": {
     "engine": "apiz",
@@ -22,8 +28,6 @@
     "speed": 1.0
   },
 
-  "voice": "zh-CN-YunjianNeural",
-  "rate": "+14%",
   "output": "final.mp4",
 
   "scenes": [
@@ -33,20 +37,19 @@
       "src": "g1.png",
       "bg": "sky",
       "narration": "一个人，一把扇子，站在人家客厅正中间。对面一整排江东读书人。说白了：上门推销，一个人对一屋子。",
+      "prompt": "画面左侧站着{zhugeliang}，右手拢在袖中、微微侧身；画面右侧站着{zhangzhao}，双手抱在胸前、一脸不以为然。两个人之间留出一大片空隙、绝对不要碰触。两个人都完整画在画面内。",
       "bubbles": [
         {
           "cx": 245, "cy": 175, "rx": 145, "ry": 92,
           "text": "哪来的？",
           "tail": [265, 372],
-          "tail_w": 54,
-          "at": 3.6
+          "tail_w": 54
         },
         {
           "cx": 482, "cy": 148, "rx": 135, "ry": 90,
           "text": "就他？",
           "tail": [455, 368],
-          "tail_w": 54,
-          "at": 4.9
+          "tail_w": 54
         }
       ]
     },
@@ -64,13 +67,13 @@
       "src": "g3.png",
       "bg": "sky",
       "narration": "第一个上的是张昭。这人是刘备的老粉。后来脱粉了。脱粉的人回踩最狠。",
+      "prompt": "画面中间偏左站着{zhangzhao}，背着手、下巴抬起；画面右侧站着{zhugeliang}，双手拢在袖中、平静地看着他。两人之间留出空隙、不要贴在一起。",
       "bubbles": [
         {
           "cx": 382, "cy": 170, "rx": 205, "ry": 95,
           "text": "你吹的牛呢？",
           "tail": [382, 352],
-          "tail_w": 58,
-          "at": 6.5
+          "tail_w": 58
         }
       ]
     }

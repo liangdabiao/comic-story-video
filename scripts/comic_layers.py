@@ -33,7 +33,9 @@ from PIL import Image
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_ROOT / "lib"))
+sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 from comic_layer import BG, Comic, missing_glyphs  # noqa: E402
+import story_util as SU  # noqa: E402
 
 DEFAULT_CANVAS = (1080, 1200)
 
@@ -46,12 +48,26 @@ def _ink_bbox(path: Path):
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
+def _audio_dur(root: Path, sid: str) -> float:
+    """读本格音频时长；没有音频就返回 0（气泡时刻退回均分）。"""
+    p = root / "audio" / f"{sid}.mp3"
+    if not p.exists():
+        p = root / "audio" / f"{sid}.wav"
+    if not p.exists():
+        return 0.0
+    try:
+        from comic_tts import duration
+        return duration(p)
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
 def build_bubbles(cfg, root: Path, canvas):
     out_dir = root / "bubbles"
     out_dir.mkdir(exist_ok=True)
     W, H = canvas
     total = 0
-    problems = []
+    problems, fatal = [], []
 
     for sc in cfg["scenes"]:
         bubbles = sc.get("bubbles") or []
@@ -60,8 +76,18 @@ def build_bubbles(cfg, root: Path, canvas):
 
         board = root / "boards" / f"{sc['id']}.png"
         ink = _ink_bbox(board) if board.exists() else None
+        dur = _audio_dur(root, sc["id"])
 
         for i, b in enumerate(bubbles):
+            # `at` 不写（或写 "auto"）就按念白反推 —— 字幕本来是按分句+字数
+            # 铺的，气泡用同一把尺子量，就不用掐着音频听了。
+            at = b.get("at")
+            auto = at in (None, "", "auto")
+            if auto:
+                at = SU.bubble_at(sc, b.get("text", ""), dur, i, len(bubbles))
+            else:
+                at = float(at)
+
             c = Comic(W, H, bg=None, ss=3)
             c.bubble(b["cx"], b["cy"], b["rx"], b["ry"], b["text"],
                      tail_to=tuple(b.get("tail") or (b["cx"], b["cy"] + b["ry"] + 60)),
@@ -82,19 +108,25 @@ def build_bubbles(cfg, root: Path, canvas):
                     problems.append(f"{sc['id']}_{i}「{b['text']}」尾巴悬空"
                                     f"（tail y={tail[1]}，头顶 y={ink[1]}）")
                 if b["cx"] - b["rx"] < 0 or b["cx"] + b["rx"] > W:
-                    problems.append(f"{sc['id']}_{i}「{b['text']}」气泡左右出画")
+                    fatal.append(f"{sc['id']}_{i}「{b['text']}」气泡左右出画")
 
             bad = missing_glyphs(b["text"])
             if bad:
-                problems.append(f"{sc['id']}_{i}「{b['text']}」缺字形：{bad}")
+                fatal.append(f"{sc['id']}_{i}「{b['text']}」缺字形：{bad}（渲染出来是方框）")
 
-            print(f"  bubbles/{sc['id']}_{i}.png  t={b.get('at', 0)}s  「{b['text']}」")
+            flag = " (auto)" if auto else ""
+            print(f"  bubbles/{sc['id']}_{i}.png  t={at:.1f}s{flag}  「{b['text']}」")
 
     print(f"气泡 {total} 个")
     if problems:
-        print("\n⚠️  气泡位置提醒（不影响出片，但多半要调）：")
+        print("\n⚠️  气泡位置提醒（不影响出片，但要复核）：")
         for p in problems:
             print("   · " + p)
+    if fatal:
+        print("\n✗ 气泡阻断（这些必然出片即废）：")
+        for p in fatal:
+            print("   · " + p)
+    return len(fatal)
 
 
 BACKDROP_BOX = (655, 715, 365, 425)   # 右下角，右/下各留 60
@@ -211,10 +243,13 @@ def main():
     cfg = json.loads((root / "story.json").read_text(encoding="utf-8"))
     canvas = tuple(cfg.get("canvas", DEFAULT_CANVAS))
 
+    fatal = 0
     if args.only != "charts":
-        build_bubbles(cfg, root, canvas)
+        fatal = build_bubbles(cfg, root, canvas)
     if args.only != "bubbles":
         build_charts(cfg, root, canvas)
+    if fatal:
+        raise SystemExit(f"\n✗ {fatal} 个气泡无法出片，改完再跑")
 
 
 if __name__ == "__main__":

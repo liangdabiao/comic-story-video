@@ -2,7 +2,7 @@
 
 # 漫画面讲故事 · comic-story-video
 
-**把任何选题做成 110–130 秒竖屏漫画短视频：线稿被一笔笔描出来，台词气泡逐个弹入，配音加大字幕。**
+**把任何选题做成 110–135 秒竖屏漫画短视频：线稿被一笔笔描出来，台词气泡逐个弹入，配音加大字幕。**
 
 图片在讲故事，不是给旁白配插图 —— 但故事先得讲在声音里，图才有得可配。
 
@@ -123,25 +123,56 @@ cp ../templates/comic/story.example.json story.json
 cp ../templates/comic/charts_example.py charts.py
 ```
 
-### 4) 出图
+### 4) 过文案门禁，再出图
 
 ```bash
-python ../scripts/comic_gen.py . --list      # 打印每格完整 prompt
+python ../scripts/pipeline.py . --stage script    # 字数、气泡坐标、charts 函数
+python ../scripts/comic_gen.py . --list           # 打印还没出过的那几格的 prompt
 ```
+
+`comic_gen.py` 会先跑一遍文案门禁：**没过就不打印 prompt**。
+出图是整条链路最贵的一步（每张 5–10 credits），而文案没定稿的话图基本都会作废。
 
 把 prompt 贴给任何图生图模型（ImageGen / 即梦 / Midjourney / SD），
 **参考图必须传 `assets/reference/01-style-anchor.png`**，相似度调低。
 生成的图按 `s1.png`、`s3.png` 命名放进 `raw/`。
 
+出过的图再跑 `--list` 会标「已出图，跳过」，不会重复打印 —— 换了个 agent
+重来时最费钱的就是把整批图又出一遍。
+
 ### 5) 一条命令出片
 
 ```bash
+python ../scripts/pipeline.py . --stage image     # 图不可用就停在这
 python ../scripts/comic_run.py .
+python ../scripts/pipeline.py . --stage render    # 量绘制节奏
 ```
 
 产物：`out/final.mp4`（1080×1920，含配音与烧录字幕）。
 
 > 没有配音也能先看画面：`python ../scripts/comic_run.py . --skip tts`。
+
+---
+
+## 三道门禁（`scripts/pipeline.py`）
+
+写文档不够 —— 上一版把「先定稿文案再出图」「出图前检查连通域」都写进了散文，
+实测一条片子还是文案改 3 版、图出 10 张用 6 张、返工两轮、墙钟 46 分钟。
+所以判定改成了代码：
+
+| 关 | 命令 | 拦什么 |
+|---|---|---|
+| ① 文案 | `--stage script` | 缺念白、总字数 >570、气泡出画、`charts.py` 里没有要的函数、`{角色}` 未定义 |
+| ② 图 | `--stage image` | 缺图、几乎空白、整片涂黑（只有这三种） |
+| ③ 节奏 | `--stage render` | 引擎提前画完（t95 < 55%） |
+
+不通过非零退出。**只拦会导致返工的结构性问题，风格建议一律只警告不阻断。**
+
+判不准的指标一律只记录、不下判决 —— 这一条是踩过坑的：
+`largest_share` 曾经被当成「>90% 必重出」，量了 6 个出片成功的项目之后推翻，
+91~96% 的五格里有三格节奏完全正常（单人图的轮廓天然就是一块）。
+按旧规则会白重出三张图。同理，「中灰 > 8% 就重出」也废除了：
+通过的图里中灰有到 11.3% 的。
 
 ---
 
@@ -160,7 +191,8 @@ python ../scripts/comic_run.py .
 
 | 脚本 | 作用 |
 |---|---|
-| `scripts/comic_gen.py` | 打印每格完整 prompt（或调 Agnes 后端批量出图） |
+| `scripts/pipeline.py` | **三道门禁**：文案 / 图 / 节奏，不通过非零退出 |
+| `scripts/comic_gen.py` | 打印每格完整 prompt（出过的跳过；或调 Agnes 后端批量出图） |
 | `scripts/comic_boards.py` | 净化、抹水印、统一画布、生成 `plan.json`（不切图） |
 | `scripts/comic_tts.py` | 逐格配音，量真实时长，报字/秒；文案变了自动重配 |
 | `scripts/comic_layers.py` | 透明气泡层 + 信息图整图 |
@@ -351,7 +383,8 @@ comic-story-video/
 ├── SKILL.md                   skill 主文档（agent 读这个）
 ├── README.md
 ├── scripts/
-│   ├── comic_gen.py           出图 prompt / 批量出图
+│   ├── pipeline.py            三道门禁：文案 / 图 / 节奏
+│   ├── comic_gen.py           出图 prompt（出过的跳过）/ 批量出图
 │   ├── comic_boards.py        净化 + 落版（不切图）
 │   ├── comic_tts.py           逐格配音
 │   ├── comic_layers.py        气泡层 + 信息图
@@ -364,6 +397,7 @@ comic-story-video/
 │   └── setup.sh / setup.ps1
 ├── lib/
 │   ├── comic_layer.py         叙事层：气泡 / 标签 / 红圈 / 手写注 / 箭头
+│   ├── story_util.py          story.json 读数：字数、prompt 指纹、角色展开、气泡时刻
 │   ├── lineart_clean.py       线稿净化 + 连通域体检
 │   ├── theme.py               ffmpeg 定位
 │   └── lib_agnes.py           可选：Agnes 图生图后端

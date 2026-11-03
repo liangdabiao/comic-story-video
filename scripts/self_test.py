@@ -114,6 +114,62 @@ def t_render():
     return f"{out.stat().st_size // 1024}KB  {tmp}"
 
 
+def t_gate():
+    """三道门禁的代码本身能跑通 —— 用一个最小项目正反各测一次。
+
+    这是必须的自检项：门禁判错了比没有门禁更糟（会拦掉好图，白花钱重出）。
+    """
+    import shutil
+    from PIL import Image, ImageDraw
+    tmp = Path(tempfile.mkdtemp(prefix="comic_gate_"))
+    try:
+        (tmp / "raw").mkdir()
+        (tmp / "audio").mkdir()
+        # 一张干净的图 + 一张几乎空白的图
+        img = Image.new("RGB", (600, 600), (255, 255, 255))
+        d = ImageDraw.Draw(img)
+        d.ellipse([150, 200, 350, 460], outline=(0, 0, 0), width=5)
+        d.line([(150, 520), (350, 520)], fill=(0, 0, 0), width=5)
+        img.save(tmp / "raw" / "ok.png")
+        Image.new("RGB", (600, 600), (255, 255, 255)).save(tmp / "raw" / "blank.png")
+
+        cfg = {
+            "title": "gate", "canvas": [1080, 1200],
+            "characters": {"hero": "灰袍老者"},
+            "scenes": [
+                {"id": "s1", "type": "art", "src": "ok.png", "bg": "sky",
+                 "narration": "各位，今儿说个人。" * 8,
+                 "prompt": "{hero} 站在画面中间，双手拢在袖中，" * 2,
+                 "bubbles": [{"cx": 540, "cy": 160, "rx": 140, "ry": 80, "text": "走着瞧"}]},
+                {"id": "s2", "type": "art", "src": "blank.png", "bg": "sky",
+                 "narration": "第二件事。" * 8,
+                 "prompt": "{hero} 站在画面右侧，背着手，" * 2},
+            ],
+        }
+        (tmp / "story.json").write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+
+        r = subprocess.run([sys.executable, str(SKILL_ROOT / "scripts" / "pipeline.py"),
+                            str(tmp), "--stage", "image"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        out = r.stdout + r.stderr
+        if r.returncode == 0:
+            raise RuntimeError("空白图没被拦住（门禁失效）")
+        if "几乎空白" not in out:
+            raise RuntimeError(f"没报出空白，输出：{out[-200:]}")
+        if "✓" not in out:
+            raise RuntimeError("干净图也被拦了")
+
+        # 气泡时刻自动反推
+        sys.path.insert(0, str(SKILL_ROOT / "lib"))
+        import story_util as SU
+        at = SU.bubble_at(cfg["scenes"][0], "走着瞧", 10.0, 0, 1)
+        if not (0 < at < 10):
+            raise RuntimeError(f"bubble_at 算出 {at}")
+        return f"空图被拦、好图通过、气泡自动 at={at}s"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="跳过实际渲染")
@@ -125,6 +181,7 @@ def main():
     check("ffmpeg", t_ffmpeg)
     check("edge-tts", t_tts)
     check("白板引擎", t_engine)
+    check("三道门禁 pipeline", t_gate)
     if not args.quick:
         check("实际渲染 2 秒", t_render)
 
