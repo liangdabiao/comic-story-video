@@ -133,7 +133,7 @@ def check_script(root: Path) -> bool:
     if not (lo <= len(scenes) <= hi):
         r.warn(f"{len(scenes)} 格，推荐 8 格（7-9 可接受）")
 
-    total_chars, total_est = 0, 0.0
+    total_chars, total_est, any_real = 0, 0.0, False
     all_narr = ""
     for sc in scenes:
         sid = sc.get("id", "?")
@@ -142,7 +142,6 @@ def check_script(root: Path) -> bool:
         n = SU.narration_chars(narr)
         est = SU.est_seconds(narr)
         total_chars += n
-        total_est += est
         all_narr += narr
 
         if not narr.strip():
@@ -151,7 +150,12 @@ def check_script(root: Path) -> bool:
             r.warn(f"{sid}: 念白只有 {n} 字，撑不起一格")
 
         bubbles = sc.get("bubbles") or []
-        r.line(f"  {sid:<3} {kind:<5} {n:>3}字 {est:>5.1f}s  泡{len(bubbles)}")
+        dur = _scene_dur(root, sid, est)
+        if dur != est:
+            any_real = True
+        total_est += dur
+        r.line(f"  {sid:<3} {kind:<5} {n:>3}字 {dur:>5.1f}s  泡{len(bubbles)}"
+               f"{'' if abs(dur - est) < 0.4 else '  (实测)'}")
 
         # 气泡：字数、越界、缺字形、at
         W, H = tuple(cfg.get("canvas", (1080, 1200)))
@@ -176,8 +180,10 @@ def check_script(root: Path) -> bool:
             at = b.get("at")
             if at in (None, "", "auto"):
                 pass          # 不写是推荐做法：comic_layers 会按念白反推
-            elif float(at) > est + 0.8:
-                r.fail(f"{tag}: at={at}s 超出本格时长 {est:.1f}s（改了文案没重算 at）")
+            elif float(at) > dur + 0.8:
+                # 有音频就用实测时长判，别拿字数估的秒数去卡 —— 估算偏低时
+                # 会误报「超时长」，那种假警报比不报还坏
+                r.fail(f"{tag}: at={at}s 超出本格时长 {dur:.1f}s（改了文案没重算 at）")
             try:
                 from comic_layer import missing_glyphs
                 bad = missing_glyphs(txt)
@@ -213,15 +219,17 @@ def check_script(root: Path) -> bool:
             r.fail(f"{sid}: type={kind} 不认识（只能是 art / chart）")
 
     # 全片
-    r.line(f"\n  合计 {total_chars} 字 → 约 {total_est:.0f} 秒"
-           f"（目标 {TARGET_SEC[0]}–{TARGET_SEC[1]}s = {TARGET_CHARS[0]}–{TARGET_CHARS[1]} 字）")
+    src = "音频实测" if any_real else "按字数估"
+    r.line(f"\n  合计 {total_chars} 字 → {total_est:.0f} 秒（{src}，未计格间停顿）"
+           f"  目标 {TARGET_SEC[0]}–{TARGET_SEC[1]}s = {TARGET_CHARS[0]}–{TARGET_CHARS[1]} 字")
     if total_chars > HARD_MAX_CHARS:
         r.fail(f"总字数 {total_chars} > {HARD_MAX_CHARS}，成片必然超过 140 秒。"
                f"现在砍字，别等出完图再砍")
     elif total_est > TARGET_SEC[1]:
-        r.warn(f"预估 {total_est:.0f}s，略超 {TARGET_SEC[1]}s（按经验成片会比预估短 1~2s）")
+        r.warn(f"{total_est:.0f}s，超出 {TARGET_SEC[1]}s"
+               f"（成片还要加格间停顿，只会更长）")
     elif total_est < TARGET_SEC[0]:
-        r.warn(f"预估 {total_est:.0f}s，不到 {TARGET_SEC[0]}s")
+        r.warn(f"{total_est:.0f}s，不到 {TARGET_SEC[0]}s")
 
     hits = [(p, all_narr.find(p)) for p in DEAD_PHRASES if p in all_narr]
     for p, off in hits:
@@ -236,17 +244,45 @@ def check_script(root: Path) -> bool:
     return r.dump()
 
 
+def _scene_dur(root: Path, sid: str, est: float) -> float:
+    """本格实际时长：有音频就用音频的，没有才用字数估。
+
+    为什么要分两种：文案关在配音之前跑，那时还没有音频；但配音之后再跑一次
+    门禁（很常见），拿字数估的秒数去卡 `at` 会误报。
+    """
+    for ext in ("mp3", "wav"):
+        p = root / "audio" / f"{sid}.{ext}"
+        if p.exists():
+            try:
+                from comic_tts import duration
+                d = duration(p)
+                if d > 0:
+                    return round(d, 1)
+            except Exception:  # noqa: BLE001
+                pass
+    return est
+
+
+_CHART_CACHE: dict[str, dict | None] = {}
+
+
 def _chart_registry(charts_py: Path):
+    """载入项目的 charts.py，返回 CHARTS 字典（同一次运行只载一次）。"""
+    key = str(charts_py)
+    if key in _CHART_CACHE:
+        return _CHART_CACHE[key]
     import importlib.util
     try:
         spec = importlib.util.spec_from_file_location("_proj_charts_probe", charts_py)
         mod = importlib.util.module_from_spec(spec)
         sys.path.insert(0, str(charts_py.parent))
         spec.loader.exec_module(mod)          # noqa: F401
-        return getattr(mod, "CHARTS", {}) or {}
+        reg = getattr(mod, "CHARTS", {}) or {}
     except Exception as e:  # noqa: BLE001
         print(f"  ⚠ charts.py 载入失败：{e}")
-        return None
+        reg = None
+    _CHART_CACHE[key] = reg
+    return reg
 
 
 # ────────────────────────── ② 图 ──────────────────────────
