@@ -47,6 +47,9 @@
   <img src="assets/demo/storyboard.png" width="860" alt="七格分镜总览">
 </p>
 
+B站效果： https://www.bilibili.com/video/BV1p64M6wE1w/?vd_source=86926e418c83af75f6850b5546388a79
+
+
 <p align="center"><sub>7 格里 5 个对话格 + 2 个信息图格，交替推进：狗门 → 底牌 → 开嘲 → 战况 → 绑贼 → 反击 → 收尾</sub></p>
 
 <p align="center">
@@ -405,4 +408,7 @@ agent 会读 `SKILL.md`，按流水线走完文案 → 出图 → 排版 → 配
 - 手写字体：马善政楷书（SIL Open Font License，见 `assets/fonts/OFL-MaShanZheng.txt`）
 - 叙事与文案方法参考「混子哥」的漫画解说风格，仅供学习研究
 
+https://linux.do 社区支持感谢
+
 本项目：[MIT](LICENSE) © comic-story-video contributors
+
