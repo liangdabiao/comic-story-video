@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.Python
+
+# venv
+.venv/
+venv/
+env/
+.ENV/
+
+# 业务产物（用户出片产物）
+out/
+audio/
+boards/
+bubbles/
+charts/
+raw/
+subs.ass
+plan.json
+*.stamp
+boards_meta.json
+templates/comic/_preview/
+self_test_artifacts/
+*.mp4
+*.mp3
+*.lrc
+
+# 编辑器 / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 环境变量
+.env
+.env.local

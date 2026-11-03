@@ -1,0 +1,18 @@
+# 漫画面讲故事 · 依赖
+#
+# whiteboard-animator 是官方 PyPI 包，自带 CRAFT 文字检测模型 craft.onnx（约 83MB）。
+# 模型不随本仓库分发，而是 setup 时由 pip 从 PyPI 自动下载。
+# 它的传递依赖（opencv / scikit-image / scipy / onnxruntime / pydantic）pip 会自动装。
+
+# 白板手绘引擎：把线稿拆成骨架路径，按人手顺序逐段描
+whiteboard-animator==0.1.1
+
+# 叙事层 / 线稿净化（comic_layer.py、lineart_clean.py 直接 import）
+Pillow>=10.0
+numpy>=1.24
+
+# 配音。7.2.x 会被 Edge 拒绝（403），必须 7.3 以上
+edge-tts>=7.3.0
+
+# 字形预检：防气泡里出现方框（缺字形时 PIL 照样出墨）
+fonttools>=4.40

@@ -1,0 +1,67 @@
+{
+  "_读我": [
+    "把这个文件复制成 <项目目录>/story.json，改内容即可。",
+    "type=art   线稿格：raw/ 里的图 → 净化 → 三带 → 白板引擎逐笔描",
+    "type=chart 信息图格：charts.py 里同名函数画出来 → zoompan 静帧，不进引擎",
+    "bubbles[].at 是相对本格开始的秒数，必须对上 narrration 里那句话的落点",
+    "字号不用手调：字太宽 bubble() 会自动缩"
+  ],
+
+  "title": "舌战群儒",
+  "subtitle": "一个人，对一屋子",
+  "canvas": [1080, 1200],
+  "gap": 0.15,
+  "voice": "zh-CN-YunjianNeural",
+  "rate": "+14%",
+  "output": "final.mp4",
+
+  "scenes": [
+    {
+      "id": "s1",
+      "type": "art",
+      "src": "g1.png",
+      "bg": "sky",
+      "narration": "一个人，一把扇子，站在人家客厅正中间。对面一整排江东读书人。说白了：上门推销，一个人对一屋子。",
+      "bubbles": [
+        {
+          "cx": 245, "cy": 175, "rx": 145, "ry": 92,
+          "text": "哪来的？",
+          "tail": [265, 372],
+          "tail_w": 54,
+          "at": 3.6
+        },
+        {
+          "cx": 482, "cy": 148, "rx": 135, "ry": 90,
+          "text": "就他？",
+          "tail": [455, 368],
+          "tail_w": 54,
+          "at": 4.9
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "type": "chart",
+      "bg": "cream",
+      "chart": "chart_s2",
+      "pad": 1.2,
+      "narration": "先看账。曹操二十多万，孙权三万，刘备两千。这数念出来都不好意思。"
+    },
+    {
+      "id": "s3",
+      "type": "art",
+      "src": "g3.png",
+      "bg": "sky",
+      "narration": "第一个上的是张昭。这人是刘备的老粉。后来脱粉了。脱粉的人回踩最狠。",
+      "bubbles": [
+        {
+          "cx": 382, "cy": 170, "rx": 205, "ry": 95,
+          "text": "你吹的牛呢？",
+          "tail": [382, 352],
+          "tail_w": 58,
+          "at": 6.5
+        }
+      ]
+    }
+  ]
+}
