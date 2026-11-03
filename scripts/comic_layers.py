@@ -13,7 +13,7 @@
 产物
 ----
     bubbles/s1_0.png   透明气泡，合成时 overlay
-    charts/s2.png      信息图格整图（不进引擎，走 zoompan 静帧）
+    charts/s2.png      信息图格整图（不进引擎，合成时静止 + 淡入）
 
 用法
 ----
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -96,12 +97,71 @@ def build_bubbles(cfg, root: Path, canvas):
             print("   · " + p)
 
 
+BACKDROP_BOX = (655, 715, 365, 425)   # 右下角，右/下各留 60
+BACKDROP_OPACITY = 0.28
+
+
+def _pick_backdrop(cfg, sc, root: Path):
+    """给信息图挑一张底衬。
+
+    优先：本格之前、离得最近的那个线稿格 —— 「上一回合」的语义最准。
+    兜底：前面没有线稿格（第一格就是信息图），就在现成的格子里固定随机一张。
+    随机必须用格的 id 当种子，否则每次渲染都换图，分拍缓存全废、画面还会跳。
+    """
+    scenes = cfg["scenes"]
+    idx = next((i for i, s in enumerate(scenes) if s.get("id") == sc.get("id")), 0)
+    for prev in reversed(scenes[:idx]):
+        if prev.get("type", "art") != "art":
+            continue
+        p = root / "boards" / f"{prev['id']}.png"
+        if p.exists():
+            return p
+    # 兜底随机只能在「分镜里的线稿格」里挑。
+    # 不能 glob boards/*.png —— 那里还躺着 storyboard.png（七格拼图），
+    # 抽到它会把一整排小格糊到右下角。
+    pool = [root / "boards" / f"{s['id']}.png"
+            for s in scenes if s.get("type", "art") == "art"]
+    pool = [p for p in pool if p.exists()]
+    return random.Random(sc["id"]).choice(pool) if pool else None
+
+
+def _paint_backdrop(c: Comic, cfg, sc, root: Path):
+    """信息图右半边基本是空的，贴一张淡掉的别格当底衬，画面立刻不空。
+
+    铁律：**先贴图，再画字。** art() 走 multiply，顺序反了字会被压暗一遍。
+    所以这里在 fn(c) 之前调，charts.py 里不要再自己 art()（会叠两层）。
+
+    crop 是必须的：整格 1080×1200 塞进 365×425 的框，人物只剩两三百像素，
+    糊成一团线。按墨迹包围盒裁掉「上方给气泡留的白」，对比度才保得住。
+
+    opacity 0.24 是实测值：0.22 只见一团灰影，0.45 以上开始跟标题抢视线。
+
+    某格不想要，story.json 里写 "backdrop": false。
+    """
+    if sc.get("backdrop") is False:
+        return None
+    img = _pick_backdrop(cfg, sc, root)
+    if img is None:
+        return None
+    bb = _ink_bbox(img)
+    if bb is None:
+        return None
+    w, h = Image.open(img).size
+    pad = 20
+    crop = (max(0, bb[0] - pad), max(0, bb[1] - pad),
+            min(w, bb[2] + pad), min(h, bb[3] + pad))
+    c.art(img, BACKDROP_BOX, fit="contain", opacity=BACKDROP_OPACITY, crop=crop)
+    return img
+
+
 def build_charts(cfg, root: Path, canvas):
     """信息图格由项目自己的 charts.py 画。
 
     charts.py 里定义 CHARTS = {"s2": fn, ...}，fn(comic) 在给定 Comic 上作画。
     信息图是每期定制的，不适合做成通用配置 —— 代码才是对的工具，
     Comic 已经提供了气泡/标签/圈/箭头/手写注这些积木。
+
+    底衬图是**自动**贴的（上一格优先、兜底随机），charts.py 里不用写。
     """
     chart_scenes = [sc for sc in cfg["scenes"] if sc.get("type") == "chart"]
     if not chart_scenes:
@@ -132,6 +192,10 @@ def build_charts(cfg, root: Path, canvas):
             print(f"⚠️  {sid}: charts.py 里没有 CHARTS['{sc.get('chart') or sid}']")
             continue
         c = Comic(W, H, bg=BG.get(sc.get("bg", "cream"), BG["cream"]), ss=3)
+        # 先贴底衬、再画字，顺序不能反
+        used = _paint_backdrop(c, cfg, sc, root)
+        if used:
+            print(f"     底衬 ← boards/{used.name}")
         fn(c)
         c.save(out_dir / f"{sid}.png")
         print(f"  charts/{sid}.png")

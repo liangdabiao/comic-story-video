@@ -15,12 +15,13 @@
 · 强调色只用一处（红）。到处都是红，等于没有强调。
 · 别贴着画布边缘，留 60px —— 竖屏合成时四周要留白。
 
-版面右半边通常会空（三行字只占左边 2/3）。两种补法：
-  甲、贴一张淡掉的上一格当底衬 —— c.art(prev, box, opacity=0.24, crop=...)。
-      **先贴图再写字**（art 走 multiply，反了字会被压暗）。
-      prev 用 Path(__file__).resolve().parent / "boards" / "s3.png" 定位。
-  乙、拆层逐行淡入，让画面自己走节奏（进阶，charts 要能按步骤出多张 png）。
-  不要加 zoompan 缓推：裁剪窗宽是小数，ffmpeg 每帧取整，字会一直抖。
+版面右半边通常是空的，所以**底衬图由脚本自动贴**：`comic_layers` 会在调本函数
+之前，先铺一张淡掉的「上一格」到右下角（365×425，opacity 0.28）。
+所以这里**不要**自己 c.art()，会叠两层。
+某格不想要，story.json 里写 "backdrop": false。
+
+要让画面更有节奏，别加 zoompan（裁剪窗宽是小数，ffmpeg 每帧取整，字会一直抖），
+改成拆层逐行淡入 —— 那样 charts 要能按步骤输出多张 png，是进阶做法。
 """
 
 from __future__ import annotations
