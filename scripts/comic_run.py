@@ -11,7 +11,7 @@
     render  白板引擎逐笔渲染（最慢，几分钟）
     finish  合成 → 字幕 → 竖屏
 
-跑之前先过门禁：python scripts/pipeline.py <项目目录> --stage image
+跑之前先预检：python scripts/pipeline.py <项目目录> --stage image
 
 单步重跑用对应的 comic_*.py；本脚本是「全跑」的便捷入口。
 """
@@ -61,7 +61,7 @@ def main():
         sys.path.insert(0, str(SKILL))
         import pipeline
         if not pipeline.check_images(project):
-            raise SystemExit("✗ 图门禁没过，先修图（--no-gate 可跳过）")
+            raise SystemExit("✗ 缺图或废图，先补（--no-gate 可跳过）")
 
     if "tts" not in skip:
         call("tts", project)

@@ -40,7 +40,7 @@ python scripts/self_test.py                                    # 6 项自检，�
 mkdir -p out/my-story/raw
 cp templates/comic/story.example.json out/my-story/story.json
 
-# ① 填 story.json 头三行 + 每格念白，过文案门禁
+# ① 填 story.json 头三行 + 每格念白（写法见 references/example.md）
 python scripts/pipeline.py out/my-story --stage script
 
 # ② 出图：打印 prompt，出完放进 raw/
@@ -62,6 +62,7 @@ python scripts/comic_run.py out/my-story
 comic-story-video/
 ├── SKILL.md                     给 AI 的执行说明（流程 + 十条硬规则）
 ├── references/
+│   ├── example.md               一版合格的八格念白（先看这个）
 │   ├── story.md                 怎么把选题变成故事
 │   ├── production.md            出图 / 气泡 / 配音 / 渲染 / 合成参数
 │   ├── troubleshooting.md       症状 → 真因 → 处置

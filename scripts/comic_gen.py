@@ -15,10 +15,10 @@
 
 三道锁（都是「少花钱」的锁，不是流程洁癖）
 ------------------------------------------
-**锁一 · 文案没过门禁，不给 prompt。**
+**锁一 · 文件没齐，不给 prompt。**
 出图是全链路最贵的一步（每张 5–10 credits）。先跑 `pipeline.py --stage script`，
-文案字数/气泡坐标/charts 函数有结构性问题就停下来 —— 那意味着你一定会改文案，
-而改文案之后图就白出了。急用可以 `--no-gate`，但那是给自己找返工。
+缺 src / 缺 prompt / charts 函数不存在这类问题会停下来 —— 那意味着这格出不了图，
+或者出了也用不上。急用可以 `--no-gate`，但那是给自己找返工。
 
 **锁二 · 出过的图不再打印。**
 raw/ 里已经有这张图、且 prompt 指纹没变 → 直接标「已出图」跳过。
@@ -84,8 +84,7 @@ def cmd_list(cfg, root: Path, gate: bool, show_done: bool):
         import pipeline
         if not pipeline.check_script(root):
             raise SystemExit(
-                "\n✗ 文案没过门禁，不出图。出图是最贵的一步，文案还会改，"
-                "现在出的图大概率作废。\n"
+                "\n✗ 文件没齐，不出图。缺的字段会让这格出不了图或出出来用不上。\n"
                 "  改完重跑：python scripts/pipeline.py <项目目录> --stage script\n"
                 "  （确定要硬出，加 --no-gate）")
 

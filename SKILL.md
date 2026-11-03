@@ -1,6 +1,6 @@
 ---
 name: comic-story-video
-version: 3.0.0
+version: 3.1.0
 display_name: 漫画面讲故事
 display_name_en: Comic Story Video
 description_zh: 把任意选题做成「图片在讲故事」的竖屏短视频——生成式线稿逐笔描出 + 代码叠台词气泡 + 单口配音 + 大字幕。声音是主线：念白本身必须是一条听得懂的故事。适用于漫画风格解说、历史与知识类短视频、贱萌吐槽向科普，或用户要求「像混子哥那样讲」「图片讲故事」「漫画分镜视频」时。
@@ -22,6 +22,8 @@ agent_created: true
 
 ### ① 定故事 → `<项目>/story.json`
 
+**先读 `references/example.md`。** 那里面有一版八格念白，还有三句写完就能用的自检。照着那个形状写，比看下面任何一句规则都管用。
+
 建目录、拷模板：
 
 ```bash
@@ -41,10 +43,12 @@ mkdir -p <项目>/raw && cp templates/comic/story.example.json <项目>/story.js
 然后写每格的 `narration`（念白）和 `bubbles[].text`（台词）。念白 440–540 字，标点算字，按 4.0 字/秒反算。
 
 ```bash
-python scripts/pipeline.py <项目> --stage script     # 不过不许往下走
+python scripts/pipeline.py <项目> --stage script     # 只查文件齐不齐，不判文案好坏
 ```
 
-**① 的判定**：三行齐全 → 字数在区间 → 每格有念白 → 气泡不出画 → `charts.py` 里的函数存在。
+**① 查的是「跑不跑得起来」**：story.json 能读、每格有念白、art 格有 `src` 和 `prompt`、`charts.py` 里有对应函数、气泡不出画。
+
+**文案写成什么样，脚本一律不管** —— 它只会数数，让它判故事，等于让一把尺子判文章。好坏只有一个办法：把八格念白连着读一遍，用 `references/example.md` 末尾那三句话问自己。
 
 ### ② 出图 → `<项目>/raw/<id>.png`
 
@@ -94,7 +98,7 @@ ffmpeg -y -ss 3 -i <项目>/out/final.mp4 -vframes 1 <项目>/check/03.png
 前三条管故事，违反就是「听完不知道在说什么」。后七条管制作，违反就是画面或声音错了。
 
 **1. 先填 `story_line` / `question` / `answer`，填不出来不写格子。**
-缺这三行，八格写完才发现散，是最贵的一种返工。
+缺这三行，八格写完才发现散，是最贵的一种返工。这三行是写给你自己看的，不是给脚本看的 —— 脚本只会检查你有没有填。
 
 **2. 骨架按「主角和阻力是什么关系」选，不要给所有选题套同一张格子表。**
 
@@ -138,6 +142,7 @@ prompt 里写「不要画任何文字」，这是预防，不是出图验收标�
 
 | 情况 | 读 |
 |---|---|
+| 不知道念白该长什么样，想要一个能照着写的样本 | `references/example.md` |
 | 不知道怎么把选题变成故事、每格该放什么、结尾怎么收 | `references/story.md` |
 | 写 prompt、定角色、气泡排版、TTS、渲染与合成参数 | `references/production.md` |
 | 画面 / 声音 / 时长出错了 | `references/troubleshooting.md` |

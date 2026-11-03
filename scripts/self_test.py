@@ -115,9 +115,9 @@ def t_render():
 
 
 def t_gate():
-    """门禁代码本身能跑通 —— 用一个最小项目正反各测一次。
+    """预检代码本身能跑通 —— 用一个最小项目正反各测一次。
 
-    这是必须的自检项：门禁判错了比没有门禁更糟（会拦掉好图，白花钱重出）。
+    这是必须的自检项：预检只该拦「跑不起来」，拦错了会白花钱重出。
     同时验证「节奏关永远放行」—— 它曾经因为 t95 偏低而要人重出图，实测那些图都正常。
     """
     import shutil
@@ -154,7 +154,7 @@ def t_gate():
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         out = r.stdout + r.stderr
         if r.returncode == 0:
-            raise RuntimeError("空白图没被拦住（门禁失效）")
+            raise RuntimeError("空白图没被拦住（预检失效）")
         if "几乎空白" not in out:
             raise RuntimeError(f"没报出空白，输出：{out[-200:]}")
         if "✓" not in out:
@@ -212,7 +212,7 @@ def main():
     check("ffmpeg", t_ffmpeg)
     check("edge-tts", t_tts)
     check("白板引擎", t_engine)
-    check("门禁 pipeline（含节奏关不拦人）", t_gate)
+    check("预检 pipeline（含节奏关不拦人）", t_gate)
     if not args.quick:
         check("实际渲染 2 秒", t_render)
 
