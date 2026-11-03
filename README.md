@@ -47,7 +47,7 @@
   <img src="assets/demo/storyboard.png" width="860" alt="七格分镜总览">
 </p>
 
-B站效果： https://www.bilibili.com/video/BV1p64M6wE1w/?vd_source=86926e418c83af75f6850b5546388a79
+B站效果： https://www.bilibili.com/video/BV1GT436HEwP/?vd_source=86926e418c83af75f6850b5546388a79
 
 
 <p align="center"><sub>7 格里 5 个对话格 + 2 个信息图格，交替推进：狗门 → 底牌 → 开嘲 → 战况 → 绑贼 → 反击 → 收尾</sub></p>
@@ -305,7 +305,9 @@ python ../scripts/comic_run.py .
 | 图右下角「AI生成」 | 生成模型水印 | `--watermark br` 抹掉（默认开） |
 | 气泡压着脸 | 出图没留顶部空白 | prompt 加「上方留大片纯空白」 |
 | 配音 403 | edge-tts 被 IP 级封锁 | 升到 ≥7.3；仍 403 换 apiz，见 `references/apiz-tts-fallback.md` |
-| 语速调到 1.5 也没变快 | MiniMax `--speed` 1.3 以上饱和 | 用 `tts.post_speed`（atempo，不变调） |
+| 语速调到 1.5 也没变快 | MiniMax `--speed` 1.3 以上饱和 | 节奏靠文本，别靠系数；`post_speed` 会丢气口 |
+| 配音像播报、没起伏 | 用了公共音色，或音色描述缺「否定句」 | 用 `voice-design` 生成单口相声腔，见 `references/voice-design.md` |
+| 自定义音色过几天消失 | 临时音色 168 小时未使用被回收 | 重跑 `voice-design`，描述留在项目里 |
 | 一张图两三秒就画满、后面不动 | 深色衣物被涂成大片纯黑，人物连成一块 | 改浅色布衣 + 「不要大片涂黑」「人物之间留空隙」 |
 | 渲染 `ArrayMemoryError` | 内存不足（1080 画布需 ≥3GB） | 关掉别的程序，或临时降宽 |
 | 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒；要动就拆层逐行淡入，别加 zoompan |
@@ -367,7 +369,8 @@ comic-story-video/
 │   ├── comic-story.md         完整制作手册（唯一真相）
 │   ├── mixi-script.md         文案方法：降格 / 拆穿 / 自曝
 │   ├── prompt-recipes.md      出图 prompt 库
-│   └── apiz-tts-fallback.md   MiniMax 配音：首选引擎 + edge 403 时的替代
+│   ├── voice-design.md        配音首选：单口相声音色的生成方法与描述原文
+│   └── apiz-tts-fallback.md   apiz 接入细节与 edge 403 排查
 └── vendor/ATTRIBUTION.md      第三方组件归属
 ```
 
@@ -381,7 +384,7 @@ comic-story-video/
 | `whiteboard-animator==0.1.1` | 必须 | 白板引擎（PyPI），自带 83MB CRAFT 模型 |
 | `ffmpeg`（含 libx264） | 必须 | 合成、竖屏、字幕 |
 | `edge-tts>=7.3` | 可选 | 免费配音；7.2.x 会被 Edge 拒绝（403）。**想要混子哥那口气要用 apiz / MiniMax**，见 `references/apiz-tts-fallback.md` |
-| `apiz` CLI | 可选 | MiniMax 语音，`speed 1.30 + post_speed 1.15` ≈ 4.8 字/秒 |
+| `apiz` CLI | 可选 | MiniMax 语音。**首选**：`voice-design` 生成单口相声音色，`speed 1.0` |
 | `fonttools` | 建议 | 字形预检（防气泡里出方框） |
 | 图生图模型 | 必须 | ImageGen / 即梦 / Midjourney / SD 均可 |
 | `AGNES_API_KEY` | 可选 | 想让脚本自己批量出图时才需要 |

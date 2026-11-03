@@ -4,13 +4,24 @@
     "type=art   线稿格：raw/ 里的图 → 净化 → 三带 → 白板引擎逐笔描",
     "type=chart 信息图格：charts.py 里同名函数画出来 → zoompan 静帧，不进引擎",
     "bubbles[].at 是相对本格开始的秒数，必须对上 narrration 里那句话的落点",
-    "字号不用手调：字太宽 bubble() 会自动缩"
+    "字号不用手调：字太宽 bubble() 会自动缩",
+    "配音默认单口：tts.voice 用 voice-design 生成的相声音色（references/voice-design.md）",
+    "tts.speed 固定 1.0，不要加 post_speed —— 节奏靠文本，不靠压时间轴",
+    "顶层 voice / rate 只在 engine=edge 时生效，有其他字段时可以留着不用"
   ],
 
   "title": "舌战群儒",
   "subtitle": "一个人，对一屋子",
   "canvas": [1080, 1200],
   "gap": 0.15,
+
+  "tts": {
+    "engine": "apiz",
+    "model": "speech-2.8-hd",
+    "voice": "xiangsheng01",
+    "speed": 1.0
+  },
+
   "voice": "zh-CN-YunjianNeural",
   "rate": "+14%",
   "output": "final.mp4",

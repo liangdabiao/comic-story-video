@@ -7,10 +7,17 @@
 
 两个引擎
 --------
-edge（默认，免费）和 apiz / MiniMax（付费，语气更活）。切换用 story.json：
+edge（免费兜底）和 apiz / MiniMax（付费，语气活）。默认方案是 apiz：
 
     "tts": {"engine": "apiz", "model": "speech-2.8-hd",
-            "voice": "Chinese (Mandarin)_Unrestrained_Young_Man", "speed": 1.14}
+            "voice": "xiangsheng01", "speed": 1.0}
+
+`voice` 用 `minimax/voice-design` 生成的**自定义音色**（单口相声腔），
+不要从 303 个公共音色里挑 —— 挑不出来。生成方法见
+references/voice-design.md。
+
+**speed 用 1.0。** 相声的节奏靠文本（垫话、重复、破折号），不靠压时间轴；
+`post_speed`（atempo）会把气口压到感知线以下，听感反而变成匀速念稿。
 
 命令行 --engine / --voice / --model / --speed 优先级更高。
 **改了引擎或音色，`.sig` 指纹会变，全部自动重配** —— 否则声音还是旧的。
@@ -102,8 +109,13 @@ def synth_apiz(text: str, out: Path, voice: str, speed: float,
                model: str = DEFAULT_APIZ_MODEL):
     """apiz speak → MiniMax。语气比 edge 活，代价是按量计费。
 
-    必须用 `speak`，不要 `generate --model minimax/t2a` —— 后者是异步任务，
-    只回 task_id，拿不到音频。
+    这里用 `speak`：同步、便宜、稳定，四个参数够日常出片。
+    **它没有 emotion**（只有 model / voice / speed / output）—— 要情绪得走
+    `generate --model minimax/t2a --params`，再 `apiz tasks get <id>` 取
+    `result.audio_url`。见 references/voice-design.md §5。
+
+    旧版这里写着「不要用 t2a，异步任务只回 task_id，拿不到音频」，
+    那条是错的：tasks get 能取到结果。别再按它走。
     """
     cmd = ["apiz", "speak", text, "--model", model, "--voice", voice,
            "--speed", f"{speed:.2f}", "--output-file", str(out), "--json"]
@@ -127,10 +139,12 @@ async def synth(text: str, out: Path, voice: str, rate: str,
 def post_speed(path: Path, factor: float):
     """合成后再加速一次（atempo，不变调）。
 
-    MiniMax 的 --speed 在 1.3 以上基本饱和：实测同一句话
-    1.0 → 6.34s、1.3 → 5.94s、1.8 → 5.72s，再调也没用。
-    它的基准语速又比 edge 慢一档（4.0 字/秒 vs 4.7），
-    所以要压到短视频的节奏，只能出音之后再 atempo 一遍。
+    ⚠️ **默认别开（factor 保持 1.0）。** 等比压时间会把停顿一起缩短：
+    0.3 秒的气口压到 0.2 秒就跨过「0.15 以下算卡顿」的感知线，气口消失，
+    听感从「有顿挫」变成「匀速念稿」。时长实在超了才用，别拿它当默认。
+
+    下面这组实测只说明「--speed 压不下去」，**不代表该用 atempo 去补**：
+    同一句 speed 1.0 → 6.34s、1.3 → 5.94s、1.8 → 5.72s。
     """
     if abs(factor - 1.0) < 0.01:
         return
