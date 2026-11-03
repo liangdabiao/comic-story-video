@@ -281,7 +281,7 @@ python ../scripts/comic_run.py .
 |---|---|---|
 | 分镜 3 秒画完，后面不动 | 连通域太大 | 三带切分（默认开）；`comic_boards.py --check` 确认 |
 | 背景是荧光绿 | `blend=all_mode=multiply` 在 YUV 空间算 | 改 `colorkey` + `overlay`（脚本已内置） |
-| 信息图右侧被裁 | `zoompan` 前先 `scale` 了 | 输入=输出分辨率，zoom 从 1 起 |
+| 信息图一直轻微晃动 | `zoompan` 缓推的取整抖动 | 已删 zoompan，改静止 + 0.35s 淡入 |
 | 字幕飞出画面 | SRT + `force_style` 交给 libass | 手写 ASS，声明 `PlayResX/Y` |
 | 气泡里出方框 | 字体缺字形（`→`『』等） | `missing_glyphs()` 预检；符号改中文词 |
 | 改了旁白，声音还是旧的 | 缓存只认「文件在不在」 | 已修：按文案+音色+语速取指纹 |
@@ -292,7 +292,7 @@ python ../scripts/comic_run.py .
 | 气泡压着脸 | 出图没留顶部空白 | prompt 加「上方留大片纯空白」 |
 | 配音 403 | edge-tts 被 IP 级封锁 | 升到 ≥7.3；仍 403 换 apiz，见 `references/apiz-tts-fallback.md` |
 | 渲染 `ArrayMemoryError` | 内存不足（1080 画布需 ≥3GB） | 关掉别的程序，或临时降宽 |
-| 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒 + zoompan 缓推 |
+| 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒；要动就拆层逐行淡入，别加 zoompan |
 
 ---
 

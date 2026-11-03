@@ -155,16 +155,28 @@ class Comic:
         return [(x * s, y * s) for x, y in pts]
 
     # ────────────────── 贴线稿 ──────────────────
-    def art(self, path, box, keep_top=None, fit="width", paper=PAPER):
+    def art(self, path, box, keep_top=None, fit="width", paper=PAPER,
+            opacity=1.0, crop=None):
         """把白底线稿铺进 box（x, y, w, h）。
 
         用相乘而不是 paste：白底自动让出底色，黑线原样压上去，接缝不会有一圈白边。
         fit="width"  按宽铺满，纵向居中裁（人物格用）
         fit="contain" 整幅装进框，绝不裁（信息图每格插图长宽比差太大）
+
+        opacity < 1：先把线稿淡化（跟白底混合）再相乘，当作底衬插图用。
+            0.25–0.30 只当纹理，压不住字；0.45 以上开始抢视线。
+        crop=(x0, y0, x1, y1)：先裁一块再用，用来取「人物特写」而不是整格。
+            整格塞进竖框，人物只剩两三百像素，糊成一团线。
+
+        铁律：**先贴图，再写字。** 顺序反了，字会被 multiply 压暗一遍。
         """
         src = Image.open(path).convert("RGB")
+        if crop:
+            src = src.crop(crop)
         if keep_top is not None:
             src = src.crop((0, keep_top, src.width, src.height))
+        if opacity < 1.0:
+            src = Image.blend(Image.new("RGB", src.size, paper), src, opacity)
 
         tw, th = int(box[2] * self.S), int(box[3] * self.S)
 

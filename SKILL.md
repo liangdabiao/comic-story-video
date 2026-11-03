@@ -150,7 +150,7 @@ cp templates/comic/charts_example.py <项目目录>/charts.py
 | # | 铁律 | 错法 → 症状 |
 |---|---|---|
 | 1 | 底色用 `colorkey` + `overlay`，**不用** `blend=all_mode=multiply` | multiply 内部按 YUV 算 → 浅蓝 `(202,226,244)` 变成荧光绿 `(89,255,84)` |
-| 2 | `zoompan` 前**不要** `scale` 放大 | `iw` 指输出宽 → 信息图右侧被裁掉一截 |
+| 2 | 信息图**静止 + 淡入**，不加 `zoompan` | 缓推的裁剪窗宽是小数，ffmpeg 每帧取整 → 每两三帧跳 1px，字边一直「呼吸」 |
 | 3 | 字幕烧 **ASS 本体**，写明 `PlayResX/Y` | SRT + `force_style` → libass 落 384×288 坐标系，58 号字变几百像素飞出画面 |
 | 4 | 气泡尾巴 `tail_w ≥ 50`，气泡压低贴着人 | 尾巴又细又长 → 像帽子尖插了根针 |
 | 5 | 出图后必须二值化去噪再进引擎 | 灰阶边缘被骨架化当笔画 → 画出来是墨团 |
@@ -165,7 +165,7 @@ cp templates/comic/charts_example.py <项目目录>/charts.py
 | 主角和配角像同一个人 | 主角戴了配角同款、只是矮一点的冠 | 主角换**异类**头饰（软布巾/无冠）+ 去掉胡须；见 `prompt-recipes.md` §2.0 |
 | 合并时报「分拍合计 ≠ 成片时长」 | 分拍缓存是旧音频渲的 | 已修：`render_explainer.py` 比对缓存时长，超 0.15s 自动重渲 |
 | 背景荧光绿 | blend 在 YUV 空间算 | 铁律 1 |
-| 信息图右侧被裁 | zoompan 前先 scale | 铁律 2 |
+| 信息图一直轻微晃动、字边毛刺 | `zoompan` 缓推的取整抖动 | 铁律 2：删 zoompan，改静止 + 0.35s 淡入 |
 | 字幕飞出画面 | SRT 交给 libass | 铁律 3 |
 | 气泡里出方框 | 字体缺字形（`→`『』等） | `comic_layer.missing_glyphs()` 预检；符号改中文词 |
 | 模型照抄参考图姿势 | 相似度太高 | 调 low + 加「不要举手」负向词 |
@@ -174,7 +174,7 @@ cp templates/comic/charts_example.py <项目目录>/charts.py
 | 气泡压着脸 | 出图没留顶部空白 | prompt 加「上方留大片纯空白」 |
 | 配音 403 | edge-tts 被 IP 级封锁 | 升到 ≥7.3；仍 403 换 apiz，见 `references/apiz-tts-fallback.md` |
 | 渲染 `ArrayMemoryError` | 内存不足（1080 画布需 ≥3GB 可用） | 关掉别的程序或临时降宽 |
-| 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒 + zoompan 缓推 |
+| 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒；加 zoompan 会更糟（见铁律 2），要动就拆层逐行淡入 |
 | 时长对不上 | concat 混入坏分片 | 删 `out/segs` 重跑 |
 
 ## 实测基准（照着这个校准预期）

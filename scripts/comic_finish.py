@@ -13,9 +13,11 @@
    它即使在 format=rgb24 之后内部仍按 YUV 算，浅蓝 (202,226,244) 会被乘成
    (89,255,84) 荧光绿。改用 colorkey 抠白 + overlay，背景精确还原。
 
-2. **zoompan 的 iw 是输出宽，不是输入宽。**
-   先放大再 zoompan，画面必然被裁掉一圈（信息图右边缘总缺一截）。
-   必须输入分辨率 = 输出分辨率，zoom 从 1 起。
+2. **信息图不要加 zoompan 缓推。**
+   输入 = 输出分辨率时，裁剪窗宽 1080/zoom 是小数，ffmpeg 每帧取整，
+   画面每两三帧横竖各跳 1px，细笔画的字会一直在「呼吸」。
+   现在改成静止 + 0.35s 淡入。（反面教材两条：先放大再 zoompan 会裁掉右边缘；
+   把 zoom 从 1 以下起也会裁。）
 
 3. **字幕必须烧 ASS 本体，写明 PlayResX/PlayResY。**
    用 subtitles=x.srt:force_style=... 时，libass 会用 384×288 的默认坐标系，
@@ -118,9 +120,13 @@ def seg_chart(sc, root: Path, canvas, seg_dir: Path):
     d = ad + sc.get("pad", 0.8)
     W, H = canvas
 
-    # 铁律 2：输入 = 输出分辨率，zoom 从 1 起
-    vf = (f"zoompan=z='1+0.0004*on':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2'"
-          f":d=1:s={W}x{H}:fps=30,format=yuv420p")
+    # 信息图是给人读的，读的时候画面不该动 —— 原来挂的 zoompan 缓推已经删掉。
+    # 那个抖动的成因：输入=输出分辨率时，裁剪窗宽 1080/zoom 是小数
+    # （1079.6、1079.2…），ffmpeg 每帧取整，等于每两三帧横竖各跳 1px；
+    # 再叠上 yuv420p 每帧色度抽样错位，细笔画的字边就一直在「呼吸」。
+    # 真要动，正解是让信息图逐行淡入（见 references/comic-story.md），
+    # 而不是给一整张静态图加缓推。
+    vf = "fade=t=in:st=0:d=0.35,format=yuv420p"
 
     run([FF, "-y", "-loop", "1", "-framerate", "30", "-i", str(img), "-i", str(audio),
          "-vf", vf, "-af", f"apad=pad_dur={d - ad:.3f}",

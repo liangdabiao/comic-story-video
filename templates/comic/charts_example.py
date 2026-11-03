@@ -13,7 +13,14 @@
 · 信息图是「一眼看完」，不是「读」：每行只放一个大信息，层级最多两级。
 · 字要够大：主标题 60~64，狠话 48~52，正文 26~30。少于 26 在手机上看不见。
 · 强调色只用一处（红）。到处都是红，等于没有强调。
-· 别贴着画布边缘，留 60px；右侧更要留，因为 zoompan 会轻微推近。
+· 别贴着画布边缘，留 60px —— 竖屏合成时四周要留白。
+
+版面右半边通常会空（三行字只占左边 2/3）。两种补法：
+  甲、贴一张淡掉的上一格当底衬 —— c.art(prev, box, opacity=0.24, crop=...)。
+      **先贴图再写字**（art 走 multiply，反了字会被压暗）。
+      prev 用 Path(__file__).resolve().parent / "boards" / "s3.png" 定位。
+  乙、拆层逐行淡入，让画面自己走节奏（进阶，charts 要能按步骤出多张 png）。
+  不要加 zoompan 缓推：裁剪窗宽是小数，ffmpeg 每帧取整，字会一直抖。
 """
 
 from __future__ import annotations
@@ -71,7 +78,7 @@ def chart_s5(c: Comic):
         c.note((215, y - 40), who, color=GREY, size=30, anchor="lm", kind="hei")
         c.note((215, y + 26), ask, color=INK, size=50, anchor="lm", kind="hei")
 
-        # 右侧必须留出 zoompan 的推近余量：箭头终点别超过 x=800
+        # 右栏留给底衬插图，箭头终点压在 x=800 以内，别爬上去
         c.arrow((646, y), (704, y), color=RED, w=5, head=16, bend=-0.12)
         c.note((718, y), ret, color=RED, size=28, anchor="lm")
 
