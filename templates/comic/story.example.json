@@ -1,6 +1,8 @@
 {
   "_读我": [
     "把这个文件复制成 <项目目录>/story.json，改内容即可。",
+    "**第一步不是写格子，是填下面三行**：story_line / question / answer。",
+    "填不出来就别动笔 —— 八格写完才发现散，是最贵的那种返工（pipeline 会拦）。",
     "**先写完文案再出图**：python scripts/pipeline.py <目录> --stage script 过了才出图。",
     "type=art   线稿格：raw/ 里的图 → 净化落版 → 白板引擎逐笔描",
     "type=chart 信息图格：charts.py 里同名函数画出来 → 静止+淡入，不进引擎",
@@ -11,6 +13,10 @@
     "配音默认单口：tts.voice 用 voice-design 生成的相声音色（references/voice-design.md）",
     "tts.speed 固定 1.0，不要加 post_speed —— 节奏靠文本，不靠压时间轴"
   ],
+
+  "story_line": "一个上门推销的年轻人，想让一屋子已经打算投降的人点头，被连着刁难三次，最后一次让老板拍了桌子",
+  "question": "一个人，一张嘴，怎么让一整国闭嘴？",
+  "answer": "他不跟人比高低，他把每个人的话都翻译成了他们自己心里的怕",
 
   "title": "舌战群儒",
   "subtitle": "一个人，对一屋子",

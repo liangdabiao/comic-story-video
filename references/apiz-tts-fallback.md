@@ -39,8 +39,8 @@ python scripts/comic_tts.py <项目> --engine apiz --voice xiangsheng01 --speed 
 公共池 **303 个**，`tags` 字段全是坏的（`Mature_Woman` 标「中文,男,中年」）。
 而且全是通用朗读，没有一个是给曲艺调的。
 
-上一版选了 `Unrestrained_Young_Man`（松、痞、懒），听感是脱口秀冷面——
-**跟相声的「脆、亮、冲」正好相反**，方向错了。要临时凑合，这几个还能用：
+`Unrestrained_Young_Man`（松、痞、懒）听感是脱口秀冷面——
+**跟相声的「脆、亮、冲」正好相反**，方向不对。要临时凑合，这几个还能用：
 
 | voice_id | 听感 |
 |---|---|
@@ -139,8 +139,8 @@ apiz speak "要合成的文本" \
 1. `speak` 只有 model / voice / speed / output 四个参数，**没有 emotion**。
    要情绪得走 `generate --model minimax/t2a --params`，再 `apiz tasks get <id>`
    取 `result.audio_url`。详见 `voice-design.md` §5。
-   （本文档上一版写着「t2a 只回 task_id，拿不到音频」——**那条是错的**，
-   `tasks get` 能取到结果。别再按它走。）
+   （注意：`t2a` **能**拿到音频，`tasks get` 取 `result.audio_url` 即可。
+   不要因为 `generate` 只回 `task_id` 就以为拿不到。）
 2. 脚本里调用要显式加 `--json`（非 TTY 环境默认才是 json，别赌）。
 
 ---

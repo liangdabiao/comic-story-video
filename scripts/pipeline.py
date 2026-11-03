@@ -68,7 +68,7 @@ TARGET_SEC = (110, 135)      # 成片目标区间
 TARGET_CHARS = (int(TARGET_SEC[0] * SU.CHAR_PER_SEC),
                 int(TARGET_SEC[1] * SU.CHAR_PER_SEC))   # 440~540
 HARD_MAX_CHARS = 570         # 超过就是 140 秒，必超时
-SCENE_RANGE = (7, 9)         # 推荐 8 格
+SCENE_RANGE = (6, 9)         # 格数跟着故事走，不迁就固定 8 格
 BUBBLE_MAX_CHARS = 8
 INK_BLANK = 0.8              # 墨迹 <0.8% = 基本空白
 INK_DARK = 30.0              # 墨迹 >30% = 整片涂黑（已通过的样本最高 23.7%）
@@ -80,6 +80,23 @@ DEAD_PHRASES = [
     "回了一句", "说了一句", "说了句", "提了一句", "答了一句", "撂下一句",
     "批了俩字", "批了两个字", "一句话把", "一句话就", "张嘴就来",
     "答得挺客气", "意味深长",
+]
+
+# 解说员黑话：从体育直播 / 赌桌 / 财报电话会借来的词。
+# **只警告不阻断** —— 题材本身是比赛、辩论、对赌时（晏子使楚、舌战群儒），
+# 这些词是真的，不是比喻。脚本判不了题材，所以不下结论，只提醒你别无意识照抄。
+JARGON = [
+    "第一回合", "第二回合", "第三回合", "回合", "加码", "到顶",
+    "摊牌", "底牌", "老底", "摆平", "判词", "翻盘", "这局",
+    "记分牌", "报分", "零比", "押注",
+]
+
+# 骨架必备的三行：一句话故事 / 开场的问题 / 结尾的答案
+# 缺失 = 故事还没成形就动笔，八格写完才发现散，是最贵的那种返工
+STORY_KEYS = [
+    ("story_line", "一句话故事（谁 / 想干什么 / 卡在哪 / 结果）"),
+    ("question",   "开场要砸出来的那个问题"),
+    ("answer",     "最后一格给出、能答掉上面那个问题的答案"),
 ]
 
 
@@ -146,9 +163,21 @@ def check_script(root: Path) -> bool:
         r.fail("scenes 是空的")
         return r.dump()
 
+    # 骨架三行 —— 零成本、零误报，拦的是「八格写完才发现散」这种最贵的返工
+    r.line("")
+    for key, what in STORY_KEYS:
+        val = (cfg.get(key) or "").strip()
+        if not val:
+            r.fail(f"story.json 缺 `{key}` —— {what}。"
+                   f"先填这一行再写格子（见 SKILL.md「十条硬规则」第 1 条）")
+        elif len(val) < 8:
+            r.fail(f"`{key}` 只有 {len(val)} 个字，等于没填：{val!r}")
+        else:
+            r.line(f"  {key:<11}{val}")
+
     lo, hi = SCENE_RANGE
     if not (lo <= len(scenes) <= hi):
-        r.warn(f"{len(scenes)} 格，推荐 8 格（7-9 可接受）")
+        r.warn(f"{len(scenes)} 格，推荐 6–9 格（格数跟着故事走，别为凑数拆格子）")
 
     total_chars, total_est, any_real = 0, 0.0, False
     all_narr = ""
@@ -252,6 +281,13 @@ def check_script(root: Path) -> bool:
     for p, off in hits:
         r.warn(f"念白里有「{p}」@ 第 {off} 字 —— 听众只会知道有人说了话，不知道说了什么。"
                f"把原话写进去")
+
+    # 解说员黑话：只提醒，不阻断。题材真是比赛/辩论时，这些词是合法的
+    jar = [p for p in JARGON if p in all_narr]
+    if jar:
+        r.warn(f"念白里有解说员行话 {jar} —— 观众听到的是暗号，不是人话。"
+               f"改成人话（「第二回合」→「第二年，他又试了一样」）；"
+               f"**除非这题材本身就是比赛/辩论**，那就忽略这条")
 
     if scenes[-1].get("bg") != "cream":
         r.warn("最后一格 bg 不是 cream —— 建议总结格换米黄，视觉上「落定」")

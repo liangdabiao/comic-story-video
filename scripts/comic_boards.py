@@ -12,7 +12,7 @@
 真正管用的是 `render_explainer.py` 里**不传 element_plan**：
 引擎退回 `_schedule_components`，按 √面积把 draw_duration 分给每个连通域，
 总时长恒等于 draw_duration —— 天然铺满。同一格重测：0→6 秒均匀推进，
-7.8 秒画满，剩 2.7 秒留白。曲线见 references/comic-story.md。
+7.8 秒画满，剩 2.7 秒留白。详见 references/production.md 第五节。
 
 所以这一步只负责：净化线稿、抹水印、裁白边、等比落版、写 plan.json，
 外加一份墨迹体检（boards_meta.json）。

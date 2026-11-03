@@ -124,7 +124,7 @@ def seg_chart(sc, root: Path, canvas, seg_dir: Path):
     # 那个抖动的成因：输入=输出分辨率时，裁剪窗宽 1080/zoom 是小数
     # （1079.6、1079.2…），ffmpeg 每帧取整，等于每两三帧横竖各跳 1px；
     # 再叠上 yuv420p 每帧色度抽样错位，细笔画的字边就一直在「呼吸」。
-    # 真要动，正解是让信息图逐行淡入（见 references/comic-story.md），
+    # 真要动，正解是让信息图逐行淡入（见 references/production.md 第六节），
     # 而不是给一整张静态图加缓推。
     vf = "fade=t=in:st=0:d=0.35,format=yuv420p"
 

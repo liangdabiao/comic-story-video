@@ -20,7 +20,7 @@
 
 真正有用的检查：plan.json 有没有 regions
 ----------------------------------------
-引擎有两条调度路径（详见 `references/comic-story.md` §4）：
+引擎有两条调度路径（详见 `references/production.md` 第五节）：
 
     plan.json 的 scene 带 `regions`（有 start/end）
         → `_schedule_semantic_objects`，每个物体 clip 到 0.3~1.6 秒，
