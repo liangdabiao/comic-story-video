@@ -6,6 +6,8 @@
 
 ![分镜示例](assets/reference/storyboard.png)
 
+示例视频： https://www.bilibili.com/video/BV1wCxm6zE9n/?vd_source=86926e418c83af75f6850b5546388a79
+
 ---
 
 ## 它和普通讲解片的区别
