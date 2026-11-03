@@ -152,7 +152,7 @@ python ../scripts/comic_run.py .
  ├ ① 文案      写旁白 + 气泡台词              references/mixi-script.md
  ├ ② 出图      图生图，锚点图当参考            raw/s1.png
  ├ ③ 净化排版  二值化→抹水印→裁白边→统一画布   comic_boards.py
- ├ ④ 配音      edge-tts 逐格出声              audio/s1.mp3
+ ├ ④ 配音      MiniMax（apiz）或 edge 逐格出声 audio/s1.mp3
  ├ ⑤ 叠层      透明气泡 + 信息图               comic_layers.py
  ├ ⑥ 渲染      白板引擎逐笔描（最慢）          render_explainer.py
  └ ⑦ 合成      底色 + 线稿 + 气泡 → 字幕 → 竖屏 comic_finish.py
@@ -305,6 +305,8 @@ python ../scripts/comic_run.py .
 | 图右下角「AI生成」 | 生成模型水印 | `--watermark br` 抹掉（默认开） |
 | 气泡压着脸 | 出图没留顶部空白 | prompt 加「上方留大片纯空白」 |
 | 配音 403 | edge-tts 被 IP 级封锁 | 升到 ≥7.3；仍 403 换 apiz，见 `references/apiz-tts-fallback.md` |
+| 语速调到 1.5 也没变快 | MiniMax `--speed` 1.3 以上饱和 | 用 `tts.post_speed`（atempo，不变调） |
+| 一张图两三秒就画满、后面不动 | 深色衣物被涂成大片纯黑，人物连成一块 | 改浅色布衣 + 「不要大片涂黑」「人物之间留空隙」 |
 | 渲染 `ArrayMemoryError` | 内存不足（1080 画布需 ≥3GB） | 关掉别的程序，或临时降宽 |
 | 空镜像卡住 | 信息图是静帧 | `pad` 加 1–3 秒；要动就拆层逐行淡入，别加 zoompan |
 
@@ -365,7 +367,7 @@ comic-story-video/
 │   ├── comic-story.md         完整制作手册（唯一真相）
 │   ├── mixi-script.md         文案方法：降格 / 拆穿 / 自曝
 │   ├── prompt-recipes.md      出图 prompt 库
-│   └── apiz-tts-fallback.md   edge-tts 403 替代方案
+│   └── apiz-tts-fallback.md   MiniMax 配音：首选引擎 + edge 403 时的替代
 └── vendor/ATTRIBUTION.md      第三方组件归属
 ```
 
@@ -378,7 +380,8 @@ comic-story-video/
 | Python 3.10+ | 必须 | |
 | `whiteboard-animator==0.1.1` | 必须 | 白板引擎（PyPI），自带 83MB CRAFT 模型 |
 | `ffmpeg`（含 libx264） | 必须 | 合成、竖屏、字幕 |
-| `edge-tts>=7.3` | 建议 | 免费配音；7.2.x 会被 Edge 拒绝（403） |
+| `edge-tts>=7.3` | 可选 | 免费配音；7.2.x 会被 Edge 拒绝（403）。**想要混子哥那口气要用 apiz / MiniMax**，见 `references/apiz-tts-fallback.md` |
+| `apiz` CLI | 可选 | MiniMax 语音，`speed 1.30 + post_speed 1.15` ≈ 4.8 字/秒 |
 | `fonttools` | 建议 | 字形预检（防气泡里出方框） |
 | 图生图模型 | 必须 | ImageGen / 即梦 / Midjourney / SD 均可 |
 | `AGNES_API_KEY` | 可选 | 想让脚本自己批量出图时才需要 |
