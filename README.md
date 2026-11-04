@@ -4,7 +4,9 @@
 
 产出一条 `out/final.mp4`，1080×1920，可直接发抖音 / 视频号 / 小红书。
 
-![分镜示例](assets/reference/storyboard.png)
+
+
+<img width="477" height="801" alt="image" src="https://github.com/user-attachments/assets/4bd189f3-e5c0-46e6-8d95-fb48d6929304" />
 
 示例视频： https://www.bilibili.com/video/BV1wCxm6zE9n/?vd_source=86926e418c83af75f6850b5546388a79
 
