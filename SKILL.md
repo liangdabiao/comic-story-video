@@ -145,6 +145,7 @@ prompt 里写「不要画任何文字」，这是预防，不是出图验收标�
 | 不知道念白该长什么样，想要一个能照着写的样本 | `references/example.md` |
 | 不知道怎么把选题变成故事、每格该放什么、结尾怎么收 | `references/story.md` |
 | 写 prompt、定角色、气泡排版、TTS、渲染与合成参数 | `references/production.md` |
+| 出图走命令行（apiz flare / AGNES）怎么接、报错查哪 | `references/imagegen-backends.md` |
 | 画面 / 声音 / 时长出错了 | `references/troubleshooting.md` |
 | 写 prompt 的具体模板和反向约束词 | `references/prompt-recipes.md` |
 | 配音音节 / 音色 | `references/voice-design.md` |
